@@ -16,6 +16,8 @@ You need a free GitHub account, a free Cloudflare account and a free Resend acco
 2. **Set up email.** Sign up for Resend (https://resend.com) using the same email where you want requests to arrive (free, no domain needed). Make an API key and keep it handy. To send to a different address, verify a domain you own (~$12/yr).
 3. **Put it online and test it.** In Cloudflare go to **Workers & Pages, Create, Import a repository**, pick your copy and deploy. Add a secret named `RESEND_API_KEY` with your key, and in `wrangler.jsonc` change `"DEMO_MODE": "true"` to `"false"`. Send a request in English and again in Spanish, and check that the email arrives. Print the window sign at `/sign`.
 
+Running tests? Also run: npx playwright install chromium
+
 Stuck? The technical details below explain each step. The default page is plain on purpose: every feature in the next section is **off** unless you add its field to your config.
 
 ## Showcase: a fully customized example
