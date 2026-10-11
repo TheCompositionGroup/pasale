@@ -118,7 +118,7 @@ test('public-repo hygiene: MIT, private package, no personal author, repository 
   const asIs = 'Provided as-is under the MIT license. Not actively maintained; no support is offered.';
   assert.ok(readFileSync('README.md', 'utf8').includes(asIs));
   const sec = readFileSync('SECURITY.md', 'utf8');
-  assert.ok(sec.includes(asIs) && sec.includes('Do not include customer data in issues or forks.'));
+  assert.ok(sec.includes(asIs) && sec.includes('Never include customer data in issues, forks, or commits.'));
   const ignore = readFileSync('.gitignore', 'utf8').split('\n');
   for (const entry of ['.env', '.local/', '.wrangler/', 'node_modules']) assert.ok(ignore.includes(entry), `.gitignore covers ${entry}`);
   for (const internal of ['SPEC.md', 'CLAUDE.md']) assert.throws(() => statSync(internal), `${internal} is not shipped`);
