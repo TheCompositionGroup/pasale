@@ -1,0 +1,141 @@
+/* Pásale: two cards on desktop (business left, form right), one column on phones.
+   Transitions only, no animation library, no web fonts. Letter-spaced caps are used
+   only for the three step headers (01 / 02 / 03). */
+:root {
+  --page: #eaf0ec; --panel: #f4f8f5; --card: #fff; --tile: #f7f9f8; --ink: #1b2428; --muted: #56626b; --line: #d3dbd6;
+  --accent: #14533f; --accent-ink: #fff; --ring: rgba(20, 83, 63, .14); --focus: #1a5fd0; --danger: #a4262c;
+  --warn: #6b4300; --warn-bg: #fff3d6; --shadow: 0 4px 12px rgba(0, 0, 0, .04); --radius: 12px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #101518; --panel: #182026; --card: #1d2327; --tile: #232b30; --ink: #eef1f3; --muted: #aab4bc; --line: #46515a;
+    --accent: #5fc9a2; --accent-ink: #0c1f18; --ring: rgba(95, 201, 162, .2); --focus: #7db0ff; --danger: #ff8a8f;
+    --warn: #ffd68a; --warn-bg: #3a2c0c; --shadow: 0 4px 12px rgba(0, 0, 0, .3);
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+
+/* Layout. Phones: stacked, edge to edge. Desktop: two cards; the business card is only as tall as its content. */
+.layout { display: grid; grid-template-columns: 1fr; min-height: 100vh; }
+.biz-panel { background: var(--panel); padding: 24px 16px; border-bottom: 1px solid var(--line); }
+.form-panel { background: var(--card); padding: 24px 16px 40px; }
+@media (min-width: 960px) {
+  .layout { grid-template-columns: 5fr 7fr; gap: 32px; padding: 40px; align-items: start; }
+  .biz-panel { position: sticky; top: 40px; padding: 40px; border: 1px solid var(--line); border-radius: 16px; }
+  .form-panel { padding: 48px; border: 1px solid var(--line); border-radius: 16px; }
+  .form-panel > * { max-width: 540px; margin-inline: auto; }
+}
+
+/* Business card */
+.biz-name { margin: 0; font-size: 1.9rem; line-height: 1.12; font-weight: 900; letter-spacing: -.02em; }
+@media (min-width: 960px) { .biz-name { font-size: 2.5rem; } }
+.intro { margin: 12px 0 20px; color: var(--muted); font-weight: 500; max-width: 26rem; }
+.label { display: block; font-size: .875rem; font-weight: 700; color: var(--muted); }
+.call-card { display: flex; flex-direction: column; gap: 2px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); box-shadow: var(--shadow); color: var(--ink); text-decoration: none; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.call-card strong { font-size: 1.25rem; }
+.call-card:hover { border-color: var(--accent); box-shadow: 0 10px 24px var(--ring); transform: translateY(-1px); }
+.info { margin-top: 20px; }
+.info a { display: inline-block; margin-top: 4px; color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.hours { margin-top: 20px; }
+.hours summary { cursor: pointer; list-style: none; min-height: 32px; display: flex; align-items: center; justify-content: space-between; font-size: .875rem; font-weight: 700; color: var(--muted); }
+.hours summary::-webkit-details-marker { display: none; }
+.hours summary::after { content: "+"; font-size: 1.1rem; }
+.hours[open] summary::after { content: "–"; }
+.hours dl { margin: 6px 0 0; }
+.hrow { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid var(--line); font-size: .95rem; }
+.hrow dt { font-weight: 700; }
+.hrow dd { margin: 0; color: var(--muted); text-align: right; }
+
+/* Form */
+.demo { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-weight: 600; margin: 0 0 16px; }
+.langs { display: inline-flex; float: right; padding: 4px; gap: 2px; background: var(--tile); border: 1px solid var(--line); border-radius: 999px; }
+.langs button { min-height: 40px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: .875rem; font-weight: 700; cursor: pointer; transition: background-color .15s, color .15s; }
+.langs button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.form-title { clear: both; margin: 0; padding-top: 4px; font-size: 1.25rem; font-weight: 800; }
+.form-title::after { content: ""; display: block; width: 32px; height: 4px; margin-top: 8px; border-radius: 999px; background: var(--accent); }
+fieldset { border: 0; padding: 0; margin: 28px 0 0; min-width: 0; }
+fieldset fieldset { margin-top: 18px; }
+legend { padding: 0; margin-bottom: 8px; font-size: .9375rem; font-weight: 700; }
+legend.step { margin-bottom: 10px; font-size: .8125rem; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; }
+label.field { display: block; margin-bottom: 6px; font-size: .9375rem; font-weight: 700; }
+.note { margin: 0 0 12px; font-size: .9rem; color: var(--muted); }
+.privacy { margin: 18px 0 0; font-size: .85rem; color: var(--muted); }
+
+input[type=text], input[type=tel], textarea { width: 100%; min-height: 52px; padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--tile); color: var(--ink); font: inherit; font-weight: 600; transition: border-color .15s, box-shadow .15s, background-color .15s; }
+textarea { resize: vertical; }
+input[type=text]:focus, input[type=tel]:focus, textarea:focus { background: var(--card); border-color: var(--accent); box-shadow: 0 0 0 3px var(--ring); outline: none; }
+
+/* Tiles: services, dates, times. A tile is a native radio/checkbox laid over its label. */
+.tiles { display: grid; gap: 10px; }
+.tiles.services { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); }
+.tiles.dates { grid-template-columns: repeat(7, 1fr); gap: 4px; }
+@media (min-width: 600px) { .tiles.dates { gap: 8px; } }
+.tiles.times { grid-template-columns: repeat(3, 1fr); }
+.tile { position: relative; display: block; }
+.tile input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.tile > span { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 52px; padding: 10px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--tile); text-align: center; font-weight: 600; transition: border-color .15s, box-shadow .15s, background-color .15s, transform .15s; }
+.tile:hover > span { background: var(--card); box-shadow: var(--shadow); }
+.tile input:checked + span { background: var(--card); border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent), 0 12px 24px var(--ring); }
+.tile input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 3px; }
+.tiles.services > .tile > span { min-height: 108px; gap: 8px; }
+.ico { display: block; width: 44px; height: 44px; color: var(--accent); }
+.ico svg { display: block; width: 100%; height: 100%; }
+.tlabel { font-size: .9375rem; line-height: 1.25; }
+.tiles.dates > .tile > span { gap: 1px; padding: 8px 0; min-height: 64px; border-radius: 10px; }
+.wd { font-size: .75rem; font-weight: 700; color: var(--muted); }
+.dn { font-size: 1.15rem; font-weight: 800; line-height: 1.1; }
+.mo { font-size: .6875rem; font-weight: 700; line-height: 1; color: var(--accent); }
+.tile input:checked + span .wd { color: var(--accent); }
+.tile.spacer { visibility: hidden; }
+/* Unavailable days. Closed (per the business's hours): crossed out. Open but no times left: faded, not crossed out. */
+.tile.is-closed input, .tile.is-full input { cursor: not-allowed; }
+.tile.is-closed > span, .tile.is-full > span { background: transparent; border-style: dashed; color: var(--muted); opacity: .55; }
+.tile.is-closed:hover > span, .tile.is-full:hover > span { background: transparent; box-shadow: none; }
+.tile.is-closed .dn { font-weight: 600; text-decoration: line-through; }
+.tile.is-full .dn { font-weight: 600; }
+.keys { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; font-size: .8125rem; color: var(--muted); }
+.key { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 24px; border: 1px dashed var(--line); border-radius: 6px; font-size: .75rem; font-weight: 600; opacity: .7; }
+.swatch.is-closed { text-decoration: line-through; }
+.tiles.times > .tile > span { font-size: .875rem; font-weight: 700; }
+.times-empty { padding: 16px; border: 1px dashed var(--line); border-radius: var(--radius); background: transparent; color: var(--muted); text-align: center; opacity: .8; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.check { display: flex; gap: 12px; align-items: flex-start; min-height: 48px; padding: 8px 0; font-weight: 600; }
+.check input { width: 24px; height: 24px; margin: 0; flex: none; accent-color: var(--accent); }
+.gap { margin-top: 18px; }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+input:focus-visible, button:focus-visible, a:focus-visible, [tabindex]:focus-visible, summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[aria-invalid=true] { border-color: var(--danger); }
+fieldset.bad .tile > span { border-color: var(--danger); }
+.err { margin: 8px 0 0; font-size: .9rem; color: var(--danger); }
+.summary { margin: 18px 0 0; padding: 10px 12px; border: 2px solid var(--danger); border-radius: 8px; color: var(--danger); }
+.summary:empty { display: none; }
+.summary a { color: inherit; font-weight: 700; }
+
+.submit { display: block; width: 100%; min-height: 54px; margin-top: 22px; padding: 14px; border: 0; border-radius: var(--radius); background: var(--accent); color: var(--accent-ink); font: inherit; font-size: 1.0625rem; font-weight: 700; text-align: center; text-decoration: none; cursor: pointer; transition: box-shadow .15s, transform .1s, opacity .15s; }
+.submit:hover { box-shadow: 0 10px 24px var(--ring); }
+.submit:active { transform: scale(.99); }
+.submit[disabled] { opacity: .6; cursor: progress; }
+.credit { margin: 24px 0 0; text-align: center; font-size: .8rem; }
+.credit a { color: var(--muted); }
+
+/* Visit Ticket. On phones it carries the call button and address itself, so the business card steps aside. */
+@media (max-width: 959px) { .is-ticket .biz-panel { display: none; } }
+.ticket { padding: 18px; border: 2px dashed var(--line); border-radius: var(--radius); background: var(--card); }
+.ticket > .label { clear: both; padding-top: 8px; }
+.ticket .langs { margin-bottom: 4px; }
+.ticket .ref { display: flex; flex-direction: column; gap: 2px; margin: 14px 0 0; }
+.ticket .ref strong { font-size: 2.25rem; letter-spacing: .08em; font-weight: 900; }
+.status { display: inline-block; margin: 10px 0 16px; padding: 5px 12px; border: 2px solid var(--warn); border-radius: 999px; color: var(--warn); background: var(--warn-bg); font-weight: 800; font-size: .875rem; }
+dl { margin: 0; }
+.row { padding: 12px 0; border-top: 1px solid var(--line); }
+dt { font-size: .875rem; font-weight: 700; color: var(--muted); }
+.row dd { margin: 2px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.row dd a { color: var(--ink); }
+.follow { margin: 16px 0 0; font-weight: 700; }
+.callbtn { margin-top: 14px; }
+.again { display: block; margin: 14px auto 0; min-height: 44px; padding: 0 12px; border: 0; background: transparent; color: var(--ink); font: inherit; text-decoration: underline; cursor: pointer; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

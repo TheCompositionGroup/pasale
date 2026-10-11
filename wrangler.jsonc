@@ -1,0 +1,21 @@
+// Deploys Pásale as a Cloudflare Worker with static assets: `npx wrangler deploy`.
+// Static files come from public/. The Worker answers /api/* and /sign only.
+{
+  "name": "pasale",
+  "main": "adapters/worker.js",
+  "compatibility_date": "2025-09-01",
+  // Serve on https://<name>.<subdomain>.workers.dev, and no per-version preview URLs.
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./public",
+    "run_worker_first": ["/api/*", "/sign"]
+  },
+  // Plain settings. This copy is the public DEMO: it shows a banner and sends nothing.
+  // For a real business set "DEMO_MODE" to "false" and add the secret RESEND_API_KEY
+  // (Cloudflare dashboard > your Worker > Settings > Variables and Secrets).
+  // Never put secrets in this file.
+  "vars": {
+    "DEMO_MODE": "true"
+  }
+}
