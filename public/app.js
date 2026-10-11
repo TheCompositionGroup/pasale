@@ -131,10 +131,18 @@ function businessPanel() {
     hoursBlock()));
 }
 
+// A sticky panel taller than the screen would hide its bottom, so then it scrolls with the page instead.
+function fitPanel() {
+  const panel = root.querySelector('.biz-panel');
+  if (panel) panel.classList.toggle('tall', panel.offsetHeight > innerHeight - 80);
+}
+addEventListener('resize', fitPanel);
+
 // Both panels on every screen. Desktop: side by side. Phones: stacked.
 function mount(content, focus, cls = '') {
   const foot = cfg.attribution ? el('footer', { class: 'attribution', text: cfg.attribution[lang] }) : null;
   root.replaceChildren(el('div', { class: `layout ${cls}`.trim() }, businessPanel(), el('main', { class: 'form-panel' }, content)), foot);
+  fitPanel();
   if (focus) root.querySelector(focus)?.focus();
 }
 

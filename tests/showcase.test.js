@@ -273,7 +273,8 @@ const BROWSER_TESTS = [
   'browser: the artist credit is visible at 1440x900, 390x844 and 375x667 (EN and ES)',
   'browser: TMNK images: alt text, loading and framing',
   'browser: no item renders Untitled or an empty title element; a title shows only where one is set',
-  'browser: gallery frames are 300px from 1024px wide up and unchanged below',
+  'browser: gallery frames scale to stay in one row from 1024px wide up and are unchanged below',
+  'browser: the left panel is sticky only when it fits the screen',
   'browser: the default page never downloads the extras; the showcase does',
   'browser: sample-hours note sits directly above the day picker, Tue-Sat open',
   'browser: layout and theme are independent',
@@ -437,7 +438,14 @@ test('browser: showcase heading order, and first step above the fold at 1440x900
         const heights = await page.locator('.gallery .frame').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
         assert.ok(Math.max(...heights) - Math.min(...heights) < 1, `${where}: frame heights ${heights}`);
         if (width <= 600) assert.ok(Math.abs(heights[0] - (height <= 700 ? 84 : 93)) < 1, `${where}: phone frame height ${heights[0]}`);
-        if (width >= 1024) assert.ok(Math.abs(heights[0] - 300) < 1, `${where}: desktop frame height ${heights[0]}`);
+        if (width >= 1024) {
+          // The largest height that keeps all three frames in one row inside the column (capped at 300px).
+          const row = await page.locator('.gallery').evaluate((ul) => ({ w: ul.getBoundingClientRect().width, sum: Number(ul.style.getPropertyValue('--sum')), ys: new Set([...ul.children].map((li) => Math.round(li.getBoundingClientRect().y))).size, overflow: ul.scrollWidth > ul.clientWidth + 1 }));
+          assert.equal(row.ys, 1, `${where}: one row`);
+          assert.equal(row.overflow, false, `${where}: no sideways scrolling`);
+          assert.ok(Math.abs(heights[0] - Math.min(300, (row.w - 16) / row.sum)) < 1, `${where}: frame height ${heights[0]} is the largest that fits ${row.w}px`);
+          if (width === 1440) assert.ok(Math.abs(heights[0] - 200) <= 2, `${where}: about 200px at 1440`);
+        }
         // The visit-type tiles (the first step) are fully visible above the limit, and the page does not scroll sideways.
         const bottom = await page.evaluate(() => document.querySelector('.tiles.services').getBoundingClientRect().bottom);
         assert.ok(bottom <= limit, `${where}: first tiles end at ${Math.round(bottom)}px, limit ${limit}px`);
@@ -699,10 +707,10 @@ test('browser: the artist credit is visible at 1440x900, 390x844 and 375x667 (EN
         for (let i = 0; i < await credit.count(); i++) {
           const box = await credit.nth(i).boundingBox();
           assert.ok(box && box.width >= 60 && box.height >= 12, `${where}: credit ${i} has a real size ${JSON.stringify(box)}`);
-          // Phones, and the first row on wide screens, are on the first screen. Every credit is reachable by scrolling.
+          // Phones, and all three captions on wide screens, are on the first screen.
           const firstScreen = box.x >= 0 && box.x + box.width <= width && box.y >= 0 && box.y + box.height <= height;
           if (phone) assert.ok(firstScreen, `${where}: credit ${i} is on the first screen`);
-          if (!phone && i < 2) assert.ok(firstScreen, `${where}: credit ${i} is on the first screen`);
+          if (!phone) assert.ok(firstScreen, `${where}: caption ${i} is on the first screen`);
           await credit.nth(i).scrollIntoViewIfNeeded();
           // Hit test: the credit is what the visitor sees at its own centre, not clipped away or covered.
           assert.equal(await credit.nth(i).evaluate((e) => { const r = e.getBoundingClientRect(); const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return e.contains(top); }), true, `${where}: credit ${i} is not covered or clipped`);
@@ -747,12 +755,13 @@ test('browser: TMNK images: alt text, loading and framing', { skip: skipReason }
       assert.ok(Math.abs(f.imgW / f.imgH - f.natural) / f.natural < 0.02, 'the picture is not stretched');
     }
     assert.equal(new Set(frames.map((f) => Math.round(f.w))).size, 3, 'three different widths, one height');
-    // 300px frames are wider than the column, so the row wraps: left-aligned rows, in config order, nothing clipped.
-    assert.ok(frames.every((f) => Math.abs(f.h - 300) < 1), `desktop frame height is 300: ${frames.map((f) => f.h)}`);
-    const li = await page.locator('.gallery li').evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return { x: b.x, y: Math.round(b.y) }; }));
-    const left = await page.locator('.gallery').evaluate((e) => e.getBoundingClientRect().x);
-    assert.ok(li[0].y <= li[1].y && li[1].y <= li[2].y, 'config order');
-    for (const row of new Set(li.map((b) => b.y))) assert.ok(Math.abs(li.find((b) => b.y === row).x - left) < 1, 'each row starts at the left edge');
+    // One row, left-aligned, in config order, filling the column (about 200px high at 1440), nothing clipped.
+    assert.ok(frames.every((f) => Math.abs(f.h - 200) <= 2), `frame height at 1440 is about 200: ${frames.map((f) => f.h)}`);
+    const li = await page.locator('.gallery li').evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return { x: b.x, r: b.right, y: Math.round(b.y) }; }));
+    const ul = await page.locator('.gallery').evaluate((e) => { const b = e.getBoundingClientRect(); return { x: b.x, r: b.right }; });
+    assert.equal(new Set(li.map((b) => b.y)).size, 1, 'one row');
+    assert.ok(li[0].x < li[1].x && li[1].x < li[2].x, 'config order');
+    assert.ok(Math.abs(li[0].x - ul.x) < 1 && Math.abs(li[2].r - ul.r) < 1, 'the row spans the column from its left edge');
     assert.ok(await page.locator('.gallery').evaluate((e) => e.scrollWidth <= e.clientWidth + 1), 'no sideways scrolling');
     // The artist sits under each frame (there are no title lines).
     assert.equal(await page.locator('.gallery .t').count(), 0);
@@ -802,18 +811,65 @@ test('browser: no item renders Untitled or an empty title element; a title shows
   }, { width: 1440, height: 900 }, { galleryDir: dir });
 });
 
-test('browser: gallery frames are 300px from 1024px wide up and unchanged below', { skip: skipReason }, async () => {
-  const frameHeight = async (width, height) => {
-    let h;
-    await drive(showcaseConfig(), async (page) => { await page.waitForSelector('.gallery .frame'); h = await page.locator('.gallery .frame').first().evaluate((e) => e.getBoundingClientRect().height); }, { width, height });
-    return Math.round(h);
+test('browser: gallery frames scale to stay in one row from 1024px wide up and are unchanged below', { skip: skipReason }, async () => {
+  const measure = async (width, height) => {
+    let m;
+    await drive(showcaseConfig(), async (page) => {
+      await page.waitForSelector('.gallery .frame');
+      m = await page.evaluate(() => ({ h: document.querySelector('.gallery .frame').getBoundingClientRect().height, rows: new Set([...document.querySelectorAll('.gallery li')].map((l) => Math.round(l.getBoundingClientRect().y))).size, overflow: document.querySelector('.gallery').scrollWidth > document.querySelector('.gallery').clientWidth + 1 }));
+    }, { width, height });
+    return m;
   };
-  assert.equal(await frameHeight(1024, 768), 300);
-  assert.equal(await frameHeight(1440, 900), 300);
+  const frameHeight = async (width, height) => Math.round((await measure(width, height)).h);
+  // Never wraps between 1024 and 1439 (and beyond), and the height only grows with the screen.
+  let last = 0;
+  for (const width of [1024, 1100, 1200, 1280, 1366, 1439, 1440, 1600]) {
+    const m = await measure(width, 900);
+    assert.equal(m.rows, 1, `${width}px: one row`);
+    assert.equal(m.overflow, false, `${width}px: no sideways scrolling`);
+    assert.ok(m.h >= last - 0.5, `${width}px: ${m.h} grows with the screen`);
+    last = m.h;
+  }
+  assert.equal(await frameHeight(1024, 768), 124);
+  assert.equal(await frameHeight(1280, 800), 171);
+  assert.equal(await frameHeight(1440, 900), 200);
+  assert.ok(await frameHeight(1920, 1080) <= 300, 'capped at 300px');
   assert.equal(await frameHeight(1023, 768), Math.round(Math.min(160, Math.max(96, 1023 * 0.105)))); // the earlier clamp, 107px
   assert.equal(await frameHeight(768, 1024), 96);
   assert.equal(await frameHeight(390, 844), 93);
   assert.equal(await frameHeight(375, 667), 84);
+});
+
+test('browser: the left panel is sticky only when it fits the screen', { skip: skipReason }, async () => {
+  const state = (page) => page.evaluate(() => { const p = document.querySelector('.biz-panel'); return { tall: p.classList.contains('tall'), pos: getComputedStyle(p).position, h: p.offsetHeight, vh: innerHeight }; });
+  await drive(showcaseConfig(), async (page) => {
+    await page.waitForSelector('.gallery .frame');
+    const fits = await state(page);
+    assert.deepEqual([fits.tall, fits.pos], [false, 'sticky'], `fits at 1440x900: panel ${fits.h}px in ${fits.vh}px`);
+    await page.setViewportSize({ width: 1440, height: 600 }); // now too short: the panel scrolls with the page
+    await page.waitForFunction(() => document.querySelector('.biz-panel').classList.contains('tall'));
+    assert.equal((await state(page)).pos, 'static');
+    await page.setViewportSize({ width: 1440, height: 900 }); // and sticky again when it fits
+    await page.waitForFunction(() => !document.querySelector('.biz-panel').classList.contains('tall'));
+    assert.equal((await state(page)).pos, 'sticky');
+    await page.locator('.langs button[lang=es]').click(); // taller Spanish text still fits at 1440x900
+    const es = await state(page);
+    assert.deepEqual([es.tall, es.pos], [false, 'sticky'], `Spanish: panel ${es.h}px`);
+  }, { width: 1440, height: 900 });
+  // The rule is always: sticky when the panel fits (screen height less 80px), otherwise it scrolls.
+  for (const [width, height] of [[1280, 800], [1024, 768], [1920, 1080]]) {
+    await drive(showcaseConfig(), async (page) => {
+      await page.waitForSelector('.gallery .frame');
+      const s = await state(page);
+      assert.equal(s.tall, s.h > s.vh - 80, `${width}x${height}: panel ${s.h}px`);
+      assert.equal(s.pos, s.tall ? 'static' : 'sticky');
+    }, { width, height });
+  }
+  // The default page has a short panel, so it stays sticky.
+  await drive(testConfig({ demo: true }), async (page) => {
+    const s = await state(page);
+    assert.deepEqual([s.tall, s.pos], [false, 'sticky']);
+  }, { width: 1280, height: 720 });
 });
 
 after(async () => { await browser?.close(); });

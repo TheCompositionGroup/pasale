@@ -32,6 +32,9 @@ export function galleryStrip({ el, cfg, c, lang }) {
     item.append(g.link ? el('a', { href: g.link, rel: 'noopener', target: '_blank' }, inner) : el('span', { class: 'item' }, inner));
     return item;
   }));
+  // Row maths for wide screens (see extras.css): the sum of the frame shapes and the gaps between frames.
+  list.style.setProperty('--sum', [...list.children].reduce((n, li) => n + Number(li.style.getPropertyValue('--r')), 0).toFixed(4));
+  list.style.setProperty('--gaps', `${(list.children.length - 1) * 8}px`);
   return [title ? el('h2', { class: 'gallery-title', text: title }) : null, list, credit ? el('p', { class: 'gallery-credit', text: credit }) : null];
 }
 

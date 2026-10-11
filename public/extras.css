@@ -17,9 +17,11 @@
 .howbuilt summary { cursor: pointer; font-weight: 700; }
 .source { margin: 8px 0 0; padding: 12px; max-height: 360px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--tile); font: .75rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; user-select: text; }
 
+/* From 1024px: one row that always fits the column. Each frame's share of the row follows its shape, so all frames
+   come out the same height (the largest that fits), capped at 300px; the row is left-aligned when the column is wider. */
 @media (min-width: 1024px) {
-  .gallery { --gh: 300px; flex-wrap: wrap; gap: 12px 8px; overflow: visible; }
-  .biz-panel:has(.gallery) { position: static; } /* taller than the screen: let it scroll with the page */
+  .gallery { flex-wrap: nowrap; max-width: calc(var(--sum) * 300px + var(--gaps)); overflow: visible; }
+  .gallery li { flex: var(--r) 1 0; width: auto; min-width: 0; }
 }
 @media (max-width: 959px) { .gallery { margin-top: 12px; gap: 6px; } .gallery-title + .gallery { margin-top: 6px; } }
 /* Phones: one sideways-scrolling row. The artist credit line replaces the heading and captions. */
