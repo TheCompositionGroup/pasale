@@ -24,6 +24,7 @@ function el(tag, attrs = {}, ...kids) {
 
 const t = () => cfg.copy[lang];
 const fill = (s, vars) => s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+const hasPhone = () => Boolean(cfg.business.phone);
 const telHref = (phone) => `tel:${phone.replace(/[^\d+]/g, '')}`;
 const mapsHref = (address) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
 
@@ -47,6 +48,26 @@ function tile(type, name, value, checked, content, onchange) {
     el('span', {}, content));
 }
 
+// Optional theme: four tokens from the config become CSS variables. No theme, no change.
+function readableInk(hex) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? '#111111' : '#ffffff';
+}
+function applyTheme(theme) {
+  if (!theme) return;
+  const set = (k, v) => document.documentElement.style.setProperty(k, v);
+  set('--page', theme.background);
+  set('--panel', theme.surface);
+  set('--card', theme.surface);
+  set('--tile', 'color-mix(in srgb, var(--page) 55%, var(--card))');
+  set('--ink', theme.text);
+  set('--muted', 'color-mix(in srgb, var(--ink) 72%, var(--card))');
+  set('--line', 'color-mix(in srgb, var(--ink) 20%, var(--card))');
+  set('--accent', theme.accent);
+  set('--accent-ink', readableInk(theme.accent));
+  set('--ring', 'color-mix(in srgb, var(--accent) 16%, transparent)');
+}
+
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 // 2024-01-01 was a Monday, so index i is the i-th weekday name in the visitor's language.
 const dayName = (i, style) => new Intl.DateTimeFormat(lang, { weekday: style, timeZone: 'UTC' }).format(new Date(Date.UTC(2024, 0, 1 + i)));
@@ -67,25 +88,47 @@ function hoursRows() {
     el('dd', { text: g.h ? `${fmtTime(g.h[0])} – ${fmtTime(g.h[1])}` : c.closed })));
 }
 
+// Optional gallery strip: local images only. A missing or broken image becomes a neutral placeholder frame.
+function galleryStrip() {
+  if (!cfg.gallery?.length) return null;
+  const c = t();
+  return el('ul', { class: 'gallery', 'aria-label': c.galleryLabel }, cfg.gallery.map((g) => {
+    const title = g.title[lang];
+    const frame = el('span', { class: 'frame' });
+    const placeholder = () => frame.replaceChildren(el('span', { class: 'ph', text: c.galleryPlaceholder }));
+    if (g.image) {
+      const img = el('img', { src: g.image, alt: title, loading: 'lazy' });
+      img.addEventListener('error', placeholder);
+      frame.append(img);
+    } else placeholder();
+    const inner = [frame, el('span', { class: 'cap', text: title })];
+    return el('li', {}, g.link ? el('a', { href: g.link, rel: 'noopener', target: '_blank' }, inner) : el('span', { class: 'item' }, inner));
+  }));
+}
+
 function businessPanel() {
   const c = t();
   const b = cfg.business;
-  const hours = el('details', { class: 'hours' }, el('summary', { text: c.labelHours }), el('dl', {}, hoursRows()));
+  const h = cfg.header;
+  const unsetNote = cfg.hoursUnset && cfg.hoursNote ? cfg.hoursNote[lang] : '';
+  const hours = el('details', { class: 'hours' }, el('summary', { text: c.labelHours }), unsetNote ? el('p', { class: 'note', text: unsetNote }) : el('dl', {}, hoursRows()));
   if (matchMedia('(min-width: 960px)').matches) hours.open = true;
+  const place = h?.location ? el('span', { text: h.location[lang] }) : b.address ? el('a', { href: mapsHref(b.address), rel: 'noopener', target: '_blank', text: b.address }) : null;
   return el('aside', { class: 'biz-panel' }, el('div', { class: 'biz-inner' },
-    el('h1', { class: 'biz-name', text: b.name }),
+    el('h1', { class: 'biz-name', text: h?.line ? h.line[lang] : b.name }),
+    h?.subline ? el('p', { class: 'subline', text: h.subline[lang] }) : null,
     el('p', { class: 'intro', text: c.intro }),
-    el('a', { class: 'call-card', href: telHref(b.phone) },
-      el('span', { class: 'label', text: c.labelCall }), el('strong', { text: b.phone })),
-    el('div', { class: 'info' },
-      el('span', { class: 'label', text: c.labelAddress }),
-      el('a', { href: mapsHref(b.address), rel: 'noopener', target: '_blank', text: b.address })),
+    galleryStrip(),
+    hasPhone() ? el('a', { class: 'call-card', href: telHref(b.phone) },
+      el('span', { class: 'label', text: c.labelCall }), el('strong', { text: b.phone })) : null,
+    place ? el('div', { class: 'info' }, el('span', { class: 'label', text: c.labelAddress }), place) : null,
     hours));
 }
 
 // Both panels on every screen. Desktop: side by side. Phones: stacked.
 function mount(content, focus, cls = '') {
-  root.replaceChildren(el('div', { class: `layout ${cls}`.trim() }, businessPanel(), el('main', { class: 'form-panel' }, content)));
+  const foot = cfg.attribution ? el('footer', { class: 'attribution', text: cfg.attribution[lang] }) : null;
+  root.replaceChildren(el('div', { class: `layout ${cls}`.trim() }, businessPanel(), el('main', { class: 'form-panel' }, content)), foot);
   if (focus) root.querySelector(focus)?.focus();
 }
 
@@ -171,6 +214,35 @@ function timesFieldset() {
     err ? el('p', { class: 'err', id: 'time-err', text: err }) : null);
 }
 
+// With servicePrompts on, the message prompt follows the selected visit type.
+function noteLabelText() {
+  const c = t();
+  const picked = cfg.services.find((s) => state.services.has(s.id) && cfg.servicePrompts?.[s.id]);
+  return picked ? `${cfg.servicePrompts[picked.id][lang]} ${c.optionalTag}` : c.noteLabel;
+}
+
+function configViewer() {
+  if (!cfg.showConfig) return null;
+  const c = t();
+  const pre = el('pre', { class: 'source', tabindex: '0' });
+  let loaded = false;
+  const details = el('details', { class: 'howbuilt' }, el('summary', { text: c.showConfigTitle }), el('p', { class: 'note', text: c.showConfigNote }), pre);
+  details.addEventListener('toggle', async () => {
+    if (!details.open || loaded) return;
+    loaded = true;
+    pre.textContent = c.showConfigLoading;
+    try {
+      const res = await fetch('/config-source.txt');
+      if (!res.ok) throw new Error('missing');
+      pre.textContent = await res.text();
+    } catch {
+      loaded = false;
+      pre.textContent = c.showConfigError;
+    }
+  });
+  return details;
+}
+
 function field(id, label, input, errKey) {
   const err = state.errors[errKey] ? t().fieldErrors[errKey] : '';
   return el('div', { class: 'gap' },
@@ -188,12 +260,13 @@ function renderForm(focus) {
 
   const summary = el('div', { class: 'summary', id: 'summary', role: 'alert', tabindex: '-1' });
   if (state.failure === 'rate') summary.textContent = c.rateLimited;
-  else if (state.failure === 'send') summary.append(el('strong', { text: c.errorTitle }), el('br'), c.errorBody, ' ', el('a', { class: 'call', href: telHref(cfg.business.phone), text: fill(c.callUs, { phone: cfg.business.phone }) }));
+  else if (state.failure === 'send') summary.append(el('strong', { text: c.errorTitle }), el('br'), c.errorBody, ' ', hasPhone() ? el('a', { class: 'call', href: telHref(cfg.business.phone), text: fill(c.callUs, { phone: cfg.business.phone }) }) : null);
   else if (hasErrors) summary.textContent = c.fixErrors;
 
-  const grid = cfg.days.length ? dateTiles() : null;
+  const grid = cfg.days.length && !cfg.timeOptional ? dateTiles() : null;
   const dateErr = errs.date ? c.fieldErrors.date : '';
   const servicesErr = errs.services ? c.fieldErrors.services : '';
+  const single = cfg.serviceSelect === 'single';
 
   const form = el('form', { novalidate: true, onsubmit: submit },
     cfg.demo ? el('p', { class: 'demo', text: c.demoBanner }) : null,
@@ -203,17 +276,24 @@ function renderForm(focus) {
 
     el('fieldset', { class: servicesErr ? 'bad' : '', 'aria-describedby': servicesErr ? 'services-err' : false },
       el('legend', { class: 'step', text: c.stepWhat }),
-      el('p', { class: 'note', text: c.whatHint }),
+      el('p', { class: 'note', text: single ? c.whatHintSingle : c.whatHint }),
       el('div', { class: 'tiles services' }, cfg.services.map((s) =>
-        tile('checkbox', 'services', s.id, state.services.has(s.id), [
+        tile(single ? 'radio' : 'checkbox', 'services', s.id, state.services.has(s.id), [
           s.icon && ICONS[s.icon] ? el('span', { class: 'ico', 'aria-hidden': 'true' }, svgIcon(s.icon)) : null,
           el('span', { class: 'tlabel', text: s.label[lang] }),
-        ], (e) => { e.target.checked ? state.services.add(s.id) : state.services.delete(s.id); }))),
+        ], (e) => {
+          if (single) state.services.clear();
+          e.target.checked ? state.services.add(s.id) : state.services.delete(s.id);
+          const lab = document.getElementById('note-label');
+          if (lab) lab.textContent = noteLabelText();
+        }))),
       servicesErr ? el('p', { class: 'err', id: 'services-err', text: servicesErr }) : null),
 
     el('fieldset', { class: 'section' },
       el('legend', { class: 'step', text: c.stepWhen }),
-      cfg.days.length === 0
+      cfg.timeOptional
+        ? el('p', { class: 'note', text: cfg.hoursNote[lang] })
+        : cfg.days.length === 0
         ? el('p', { class: 'note', text: c.noTimes })
         : [
             el('p', { class: 'note', text: c.preferredNote }),
@@ -230,7 +310,7 @@ function renderForm(focus) {
       field('name', c.nameLabel, el('input', { id: 'name', type: 'text', name: 'name', autocomplete: 'name', maxlength: '100', value: state.name, 'aria-invalid': errs.name ? 'true' : false, 'aria-describedby': errs.name ? 'name-err' : false, oninput: (e) => { state.name = e.target.value; } }), 'name'),
       field('phone', c.phoneLabel, el('input', { id: 'phone', type: 'tel', name: 'phone', autocomplete: 'tel', inputmode: 'tel', maxlength: '30', value: state.phone, 'aria-invalid': errs.phone ? 'true' : false, 'aria-describedby': errs.phone ? 'phone-err' : false, oninput: (e) => { state.phone = e.target.value; } }), 'phone'),
       el('div', { class: 'gap' },
-        el('label', { class: 'field', for: 'note', text: c.noteLabel }),
+        el('label', { class: 'field', id: 'note-label', for: 'note', text: noteLabelText() }),
         el('textarea', { id: 'note', name: 'note', rows: '3', maxlength: '300', oninput: (e) => { state.note = e.target.value; } }, state.note)),
       el('label', { class: 'check gap' },
         el('input', { type: 'checkbox', name: 'consent', checked: state.consent, onchange: (e) => { state.consent = e.target.checked; } }),
@@ -240,7 +320,8 @@ function renderForm(focus) {
 
     el('p', { class: 'privacy', text: c.privacy }),
     el('button', { class: 'submit', type: 'submit', disabled: state.sending, 'aria-busy': String(state.sending), text: state.sending ? c.sending : c.submit }),
-    cfg.showCredit ? el('p', { class: 'credit' }, el('a', { href: cfg.creditUrl, rel: 'noopener', target: '_blank', text: c.credit })) : null);
+    cfg.showCredit ? el('p', { class: 'credit' }, el('a', { href: cfg.creditUrl, rel: 'noopener', target: '_blank', text: c.credit })) : null,
+    configViewer());
 
   mount(form, focus);
 }
@@ -263,16 +344,24 @@ function renderTicket() {
     el('p', { class: 'status', text: c.ticketStatus }),
     cfg.demo ? el('p', { class: 'note', text: c.demoTicket }) : null,
     el('dl', {},
-      ticketRow(c.ticketPreferred, fmtLong(tk.date, tk.time)),
+      tk.date ? ticketRow(c.ticketPreferred, fmtLong(tk.date, tk.time)) : null,
       ticketRow(c.ticketServices, services),
       ticketRow(c.ticketYou, `${tk.name} · ${tk.phone}`),
-      tk.note ? ticketRow(lang === 'es' ? 'Nota' : 'Note', tk.note) : null,
+      tk.note ? ticketRow(c.ticketNote, tk.note) : null,
       ticketRow(c.ticketTextOk, tk.consent ? c.yes : c.no),
-      ticketRow(c.ticketAddress, el('a', { href: mapsHref(cfg.business.address), rel: 'noopener', target: '_blank', text: cfg.business.address }))),
+      cfg.business.address ? ticketRow(c.ticketAddress, el('a', { href: mapsHref(cfg.business.address), rel: 'noopener', target: '_blank', text: cfg.business.address })) : null),
     el('p', { class: 'follow', text: [c.responseWindow, c.followUp].filter(Boolean).join(' ') }),
-    el('a', { class: 'submit callbtn', href: telHref(cfg.business.phone), text: fill(c.ticketCall, { phone: cfg.business.phone }) }),
+    hasPhone() ? el('a', { class: 'submit callbtn', href: telHref(cfg.business.phone), text: fill(c.ticketCall, { phone: cfg.business.phone }) }) : null,
     el('p', { class: 'note', text: c.ticketKeep }),
     el('button', { class: 'again', type: 'button', text: c.again, onclick: () => { const keep = state; state = newState(); state.name = keep.name; state.phone = keep.phone; renderForm('.form-title'); } })), '#ref', 'is-ticket');
+}
+
+// Same alphabet as src/reference.js (no 0/O or 1/I/L).
+function demoReference() {
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let out = '';
+  while (out.length < 5) for (const b of crypto.getRandomValues(new Uint8Array(8))) if (b < 248 && out.length < 5) out += alphabet[b % 31];
+  return `PS-${out}`;
 }
 
 async function submit(e) {
@@ -280,18 +369,26 @@ async function submit(e) {
   if (state.sending) return;
   const errors = {};
   if (!state.services.size) errors.services = true;
-  if (!state.date) errors.date = true;
-  else if (!state.time) errors.time = true;
+  if (!cfg.timeOptional) {
+    if (!state.date) errors.date = true;
+    else if (!state.time) errors.time = true;
+  }
   if (!state.name.trim()) errors.name = true;
-  if (!state.phone.trim()) errors.phone = true;
+  if (!/^[+()\d\s.-]{7,30}$/.test(state.phone.trim()) || state.phone.replace(/\D/g, '').length < 7) errors.phone = true;
   state.errors = errors;
   state.failure = '';
   if (Object.keys(errors).length) return renderForm('#summary');
 
+  const snapshot = { name: state.name.trim(), phone: state.phone.trim(), services: [...state.services], date: state.date, time: state.time, note: state.note.trim(), consent: state.consent };
+  // Demo mode: a local confirmation only. No fetch, no endpoint, nothing leaves the browser.
+  if (cfg.demo) {
+    state.ticket = { ...snapshot, ref: demoReference() };
+    return renderTicket();
+  }
+
   state.sending = true;
   renderForm();
   const website = root.querySelector('input[name=website]')?.value ?? '';
-  const snapshot = { name: state.name.trim(), phone: state.phone.trim(), services: [...state.services], date: state.date, time: state.time, note: state.note.trim(), consent: state.consent };
   let result;
   try {
     const res = await fetch('/api/book', {
@@ -323,8 +420,10 @@ try {
   cfg = await (await fetch('/api/config')).json();
   const wanted = params.get('lang') || navigator.language?.slice(0, 2);
   lang = cfg.languages.includes(wanted) ? wanted : cfg.defaultLanguage;
+  applyTheme(cfg.theme);
   state = newState();
   renderForm();
 } catch {
-  root.replaceChildren(el('p', { text: 'Could not load the page. Please call the business directly.' }));
+  // No config loaded yet, so there is no dictionary: show both languages.
+  root.replaceChildren(el('p', { text: 'Could not load the page. Please call the business directly. / No se pudo cargar la página. Llama directamente al negocio.' }));
 }

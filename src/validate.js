@@ -19,6 +19,7 @@ export function validateRequest(body, config, days) {
   const ids = Array.isArray(b.services) ? [...new Set(b.services)] : [];
   const services = ids.map((id) => config.services.find((s) => s.id === id));
   if (!ids.length || ids.length > config.services.length || services.includes(undefined)) fields.services = true;
+  if (config.serviceSelect === 'single' && ids.length > 1) fields.services = true;
 
   const day = days.find((d) => d.date === b.date);
   if (!day) fields.date = true;

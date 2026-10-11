@@ -8,17 +8,38 @@ Pásale is a free page where your customers ask for a visit at your shop, in Eng
 
 <img src="docs/phone.png" alt="Pásale on a phone: pick what you need, a day and a time, then add your name and phone number" width="320">
 
-## Setup (about 1 hour, free)
+## Basic setup (about 1 hour, free)
 
 You need a free GitHub account, a free Cloudflare account and a free Resend account. You do not need to write code: you edit one settings file in your web browser.
 
-1. **Copy the project.** On this page click **Fork** (top right) to make your own copy.
-2. **Fill in your details.** In your copy, open `config/pasale.config.js`, click the pencil icon, and change the business name, phone, address, the email where requests should go, opening hours and services. Leave the sender address under `delivery` as it is unless you verify your own domain in step 3. Click **Commit changes**. Four ready-made examples (barber, mobile mechanic, clinic, showroom) are in `examples/`. You can fill in `publicUrl`, the address of your finished page, after step 4.
-3. **Set up email.** Sign up for Resend (https://resend.com) using the same email where you want requests to arrive — that works free with no domain. To send to a different address, verify a domain you own (~$12/yr). Then make an API key and keep it handy.
-4. **Put it online.** In Cloudflare go to **Workers & Pages, Create, Import a repository**, pick your copy and deploy. Then open the Worker's settings and add a secret named `RESEND_API_KEY` with your key. In your copy, open `wrangler.jsonc` and change `"DEMO_MODE": "true"` to `"false"`.
-5. **Test it.** Open your page, send a request in English and again in Spanish, and check that the email arrives. Print the window sign at the `/sign` address of your page.
+1. **Fill in your details.** Click **Fork** (top right) to make your own copy. Open `config/pasale.config.js`, click the pencil icon, change the business name, phone, address, the email where requests should go, opening hours and services, and click **Commit changes**. Four ready-made examples (barber, mobile mechanic, clinic, showroom) are in `examples/`.
+2. **Set up email.** Sign up for Resend (https://resend.com) using the same email where you want requests to arrive (free, no domain needed). Make an API key and keep it handy. To send to a different address, verify a domain you own (~$12/yr).
+3. **Put it online and test it.** In Cloudflare go to **Workers & Pages, Create, Import a repository**, pick your copy and deploy. Add a secret named `RESEND_API_KEY` with your key, and in `wrangler.jsonc` change `"DEMO_MODE": "true"` to `"false"`. Send a request in English and again in Spanish, and check that the email arrives. Print the window sign at `/sign`.
 
-Stuck? The technical details below explain each step.
+Stuck? The technical details below explain each step. The default page is plain on purpose: every feature in the next section is **off** unless you add its field to your config.
+
+## Showcase: a fully customized example
+
+[`examples/fancyape/`](examples/fancyape/fancyape.config.js) is a demo page with every optional feature turned on, for the example business "Fancy Ape". One config file produces the whole page; the page's **How this page is built** toggle shows that file, read-only. Nothing is sent or saved (`demo: true`).
+
+Preview it locally: `npm run showcase`, then open http://localhost:3000.
+Deploy it as its own Worker: `npx wrangler deploy --env showcase` (the default deployment is unchanged).
+
+| Optional feature | Config field that enables it |
+| --- | --- |
+| Message prompt changes with the selected visit type (EN/ES) | `servicePrompts: { <service id>: { en, es } }` |
+| Pick one visit type instead of several | `serviceSelect: 'single'` |
+| Gallery strip, up to 3 items: image, title, optional link. Images are local files in the example's `images/` folder (no hotlinking); a missing image shows a placeholder frame | `gallery: [{ image, title: { en, es }, link }]` |
+| Colors | `theme: { background, surface, accent, text }` (hex colors, applied as CSS variables) |
+| Text shown when opening hours are unset | `hoursNote: { en, es }` |
+| Footer line, e.g. "Scheduling powered by Pásale." | `attribution: { en, es }` |
+| Header line, sub-line and place line in place of the plain name and address | `header: { line, subline, location }` (each `{ en, es }`) |
+| "How this page is built" toggle showing the config file, read-only | `showConfig: true` (requires `demo: true`) |
+
+Notes:
+- With `demo: true`, phone and address may be empty, and if every day is closed and `hoursNote` is set, visitors can request a visit without choosing a time. A real (non-demo) page still needs a phone, an address and opening hours.
+- In demo mode the browser sends nothing at all: the confirmation is built locally.
+- Add your own artwork: see `examples/fancyape/images/README.md`.
 
 ---
 
@@ -65,7 +86,7 @@ Open http://localhost:3000, submit a request, and watch it arrive in the termina
 
 ## Deploying
 
-The five steps are at the top of this page. Details for each way of hosting it:
+The basic steps are at the top of this page. Details for each way of hosting it:
 
 ### Deploy to Cloudflare (primary)
 

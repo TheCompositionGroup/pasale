@@ -12,7 +12,11 @@ try {
   const config = resolveConfig(raw, process.env);
   const core = createCore({ config, env: process.env });
   const port = Number(process.env.PORT ?? 3000);
-  http.createServer(createNodeHandler(core, { trustProxy: config.security.trustProxy })).listen(port, () => {
+  http.createServer(createNodeHandler(core, {
+    trustProxy: config.security.trustProxy,
+    galleryDir: config.gallery ? path.join(path.dirname(configPath), 'images') : null,
+    sourceFile: config.showConfig ? configPath : null,
+  })).listen(port, () => {
     console.log(`Pásale for "${config.business.name}" on port ${port}${config.demo ? ' (DEMO MODE: nothing is sent)' : ''}`);
   });
 } catch (e) {

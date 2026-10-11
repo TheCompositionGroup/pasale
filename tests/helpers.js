@@ -44,11 +44,11 @@ export async function startInbox(mode = 'ok') {
   return inbox;
 }
 
-export async function startApp({ inbox, config = testConfig(), env = {} } = {}) {
+export async function startApp({ inbox, config = testConfig(), env = {}, handlerOptions = {} } = {}) {
   const logs = [];
   const fullEnv = { PASALE_WEBHOOK_URL: inbox?.url ?? 'http://127.0.0.1:1/unreachable', ...env };
   const core = createCore({ config: resolveConfig(config, fullEnv), env: fullEnv, now: () => NOW, logger: { info: (o) => logs.push(o) } });
-  const server = http.createServer(createNodeHandler(core, { trustProxy: false }));
+  const server = http.createServer(createNodeHandler(core, { trustProxy: false, ...handlerOptions }));
   const port = await listen(server);
   const baseUrl = `http://127.0.0.1:${port}`;
   return {

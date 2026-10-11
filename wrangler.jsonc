@@ -17,5 +17,25 @@
   // Never put secrets in this file.
   "vars": {
     "DEMO_MODE": "true"
+  },
+  // Showcase: the Fancy Ape example, a fully customized page (see README). Deploy with
+  // `npx wrangler deploy --env showcase`. Always DEMO_MODE: nothing is sent or saved.
+  // Environments do not inherit settings, so they are repeated here. The build step copies
+  // public/, the example's images and a read-only copy of its config into .showcase/public.
+  "env": {
+    "showcase": {
+      "name": "pasale-showcase",
+      "main": "adapters/worker-showcase.js",
+      "workers_dev": true,
+      "preview_urls": false,
+      "build": { "command": "node scripts/build-showcase.js" },
+      "assets": {
+        "directory": "./.showcase/public",
+        "run_worker_first": ["/api/*", "/sign"]
+      },
+      "vars": {
+        "DEMO_MODE": "true"
+      }
+    }
   }
 }

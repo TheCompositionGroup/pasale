@@ -80,6 +80,17 @@ export function createCore({ config, env = {}, now = () => new Date(), logger = 
       copy: config.resolvedCopy,
       calendar: calendarRange(config, now()),
       days: days(),
+      // Optional features. Each is null or false unless the config turns it on.
+      serviceSelect: config.serviceSelect ?? 'multiple',
+      servicePrompts: config.servicePrompts ?? null,
+      gallery: config.gallery ? config.gallery.map((g) => ({ image: g.image ? `/gallery/${g.image}` : '', title: g.title, link: g.link ?? '' })) : null,
+      theme: config.theme ?? null,
+      hoursNote: config.hoursNote ?? null,
+      hoursUnset: config.hoursUnset,
+      timeOptional: config.timeOptional,
+      attribution: config.attribution ?? null,
+      header: config.header ?? null,
+      showConfig: config.showConfig === true,
     };
   }
 

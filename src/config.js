@@ -30,6 +30,52 @@ function missingKeys(defaults, actual, prefix = '') {
   return missing;
 }
 
+const HEX = /^#[0-9a-fA-F]{6}$/;
+const IMAGE_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,80}\.(jpe?g|png|webp|avif)$/i;
+const MAX_GALLERY = 3;
+
+// Optional features. Every one is off when its field is absent.
+function validateOptionalFeatures(c, problems) {
+  const langs = c.languages ?? [];
+  const perLang = (value, name) => {
+    for (const lang of langs) if (typeof value?.[lang] !== 'string' || !value[lang].trim()) problems.push(`${name} needs text for "${lang}"`);
+  };
+
+  if (c.serviceSelect !== undefined && !['single', 'multiple'].includes(c.serviceSelect)) problems.push('serviceSelect must be "single" or "multiple"');
+
+  if (c.servicePrompts !== undefined) {
+    const known = new Set((c.services ?? []).map((s) => s.id));
+    for (const [id, prompt] of Object.entries(c.servicePrompts ?? {})) {
+      if (!known.has(id)) problems.push(`servicePrompts."${id}" is not a service id`);
+      else perLang(prompt, `servicePrompts.${id}`);
+    }
+  }
+
+  if (c.gallery !== undefined) {
+    if (!Array.isArray(c.gallery) || c.gallery.length > MAX_GALLERY) problems.push(`gallery must be a list of at most ${MAX_GALLERY} items`);
+    else {
+      c.gallery.forEach((g, i) => {
+        const n = `gallery[${i}]`;
+        if (g.image && !IMAGE_FILE.test(g.image)) problems.push(`${n}.image must be a local file name in the example's images folder (jpg, png, webp or avif), not a URL or path`);
+        if (g.link && !HTTP_URL.test(g.link)) problems.push(`${n}.link must be an http(s) URL`);
+        perLang(g.title, `${n}.title`);
+      });
+    }
+  }
+
+  if (c.theme !== undefined) {
+    for (const k of ['background', 'surface', 'accent', 'text']) if (!HEX.test(c.theme?.[k] ?? '')) problems.push(`theme.${k} must be a hex color like #1f4d3a`);
+  }
+  if (c.hoursNote !== undefined) perLang(c.hoursNote, 'hoursNote');
+  if (c.attribution !== undefined) perLang(c.attribution, 'attribution');
+  if (c.header !== undefined) {
+    for (const k of ['line', 'subline', 'location']) if (c.header?.[k] !== undefined) perLang(c.header[k], `header.${k}`);
+  }
+  if (c.showConfig !== undefined && typeof c.showConfig !== 'boolean') problems.push('showConfig must be true or false');
+  // The config file is shown to visitors, so it must hold sample or public data only.
+  if (c.showConfig && !c.demo) problems.push('showConfig requires demo: true (the config file is shown to visitors)');
+}
+
 // Validates the raw config plus environment and returns the resolved config.
 // Fails loudly at startup so a mistake never becomes a silent runtime fault.
 export function resolveConfig(raw, env = {}) {
@@ -39,8 +85,12 @@ export function resolveConfig(raw, env = {}) {
 
   const b = c.business ?? {};
   if (!b.name) problems.push('business.name is required');
-  if (!b.phone || String(b.phone).replace(/\D/g, '').length < 7) problems.push('business.phone must be a phone number');
-  if (!b.address) problems.push('business.address is required');
+  // A demo page may leave phone and address empty; a real page needs both so visitors can reach the business.
+  const phoneDigits = String(b.phone ?? '').replace(/\D/g, '').length;
+  if (!(c.demo && !b.phone) && phoneDigits < 7) problems.push('business.phone must be a phone number');
+  if (!b.address && !c.demo) problems.push('business.address is required');
+  if (!b.address) b.address = '';
+  if (!b.phone) b.phone = '';
   if (!HTTP_URL.test(b.publicUrl ?? '')) problems.push('business.publicUrl must be a full http(s) URL (used by the /sign QR code)');
 
   if (!Array.isArray(c.languages) || !c.languages.length) problems.push('languages must be a non-empty list');
@@ -89,6 +139,8 @@ export function resolveConfig(raw, env = {}) {
     if (!ok) problems.push(`blackoutDates entry ${JSON.stringify(x)} must be "YYYY-MM-DD" or { from, to }`);
   }
 
+  validateOptionalFeatures(c, problems);
+
   if (!c.demo) {
     const d = c.delivery ?? {};
     if (d.type === 'resend') {
@@ -105,6 +157,10 @@ export function resolveConfig(raw, env = {}) {
   if (c.showCredit !== false && !HTTP_URL.test(c.creditUrl ?? '')) problems.push('creditUrl must be a URL (or set showCredit: false)');
   const rl = c.security?.rateLimit;
   if (!(rl?.max >= 1) || !(rl?.windowMinutes > 0)) problems.push('security.rateLimit needs max >= 1 and windowMinutes > 0');
+
+  // Hours left empty: every day closed. With a hoursNote, a demo page lets visitors request a visit without picking a time.
+  c.hoursUnset = DAY_KEYS.every((d) => c.hours?.[d] === null);
+  c.timeOptional = Boolean(c.demo && c.hoursUnset && c.hoursNote);
 
   if (problems.length) throw new ConfigError(problems);
   return c;
