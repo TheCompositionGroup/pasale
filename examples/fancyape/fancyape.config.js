@@ -49,7 +49,8 @@ export default {
   // Optional feature: footer line.
   attribution: { en: 'Scheduling powered by Pásale.', es: 'Citas con tecnología de Pásale.' },
 
-  // Optional feature: header lines (replace the plain business name in the page header).
+  // Optional feature: header. The headline (copy.title) becomes the page's top heading, with `line`
+  // under it, then `subline`, then `location` as the place line.
   header: {
     line: { en: 'Fancy Ape · Studio & Gallery · Melbourne, FL', es: 'Fancy Ape · Estudio y Galería · Melbourne, FL' },
     subline: { en: 'Produced by The Composition Group', es: 'Producido por The Composition Group' },
@@ -73,6 +74,7 @@ export default {
   copy: {
     en: {
       title: 'Art is better in person.',
+      formTitle: 'Request a visit',
       intro: 'Request a visit to see work in person. This is a demo of a Pásale page.',
       whatHintSingle: 'Pick the kind of visit.',
       privacy: 'Your details are used only to respond to your request.',
@@ -87,6 +89,7 @@ export default {
     },
     es: {
       title: 'El arte es mejor en persona.',
+      formTitle: 'Solicitar una visita',
       intro: 'Solicita una visita para ver las obras en persona. Esta es una demostración de una página Pásale.',
       whatHintSingle: 'Elige el tipo de visita.',
       privacy: 'Usamos tus datos solo para responder a tu solicitud.',

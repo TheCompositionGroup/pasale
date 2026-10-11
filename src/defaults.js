@@ -5,6 +5,7 @@ export const DEFAULT_COPY = {
   en: {
     languageName: 'English',
     title: 'Request a visit',
+    formTitle: 'Request a visit', // form heading when a header is configured and title is the page headline
     intro: 'Tell us what you need and when you want to come by. We will call or text you to confirm.',
     stepWhat: '01 / What',
     stepWhen: '02 / When',
@@ -71,6 +72,7 @@ export const DEFAULT_COPY = {
   es: {
     languageName: 'Español',
     title: 'Pide tu cita',
+    formTitle: 'Pide tu cita',
     intro: 'Dinos qué necesitas y cuándo quieres venir. Te llamamos o te escribimos para confirmar.',
     stepWhat: '01 / Qué',
     stepWhen: '02 / Cuándo',

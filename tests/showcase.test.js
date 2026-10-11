@@ -206,6 +206,10 @@ const BROWSER_TESTS = [
   'browser: showcase renders each feature',
   'browser: demo submit makes zero network calls (default) and the confirmation says requested',
   'browser: demo submit makes zero network calls (showcase) and the confirmation says requested',
+  'browser: hours section shows the hoursNote when hours are unset',
+  'browser: hours section is hidden when hours are unset and there is no hoursNote',
+  'browser: hours section lists weekly hours when hours are set',
+  'browser: showcase heading order and first step above the fold (1440x900, 390x844)',
 ];
 let browser = null;
 let browserProblem = '';
@@ -220,9 +224,9 @@ if (!browser) {
 }
 const skipReason = browser ? false : `SKIPPED: Playwright not usable (${browserProblem})`;
 
-async function drive(config, fn) {
+async function drive(config, fn, viewport = { width: 1280, height: 800 }) {
   const app = await startApp({ config, handlerOptions: { sourceFile: 'examples/fancyape/fancyape.config.js' } });
-  const page = await browser.newPage();
+  const page = await browser.newPage({ viewport });
   const requests = [];
   page.on('request', (r) => requests.push(`${r.method()} ${new URL(r.url()).pathname}`));
   try {
@@ -310,5 +314,52 @@ for (const name of ['default', 'showcase']) {
     });
   });
 }
+
+const noHours = { mon: null, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null };
+
+test('browser: hours section shows the hoursNote when hours are unset', { skip: skipReason }, async () => {
+  await drive(showcaseConfig(), async (page) => {
+    assert.equal(await page.locator('details.hours').count(), 0, 'no collapsed, empty-looking Hours control');
+    assert.equal(await page.locator('.hours-note p').textContent(), 'Hours: set by business');
+    assert.equal(await page.locator('.hours-note .label').textContent(), 'Hours');
+    await page.locator('.langs button[lang=es]').click();
+    assert.equal(await page.locator('.hours-note p').textContent(), 'Horario: lo define el negocio');
+    assert.equal(await page.locator('.hours-note .label').textContent(), 'Horario');
+  });
+});
+
+test('browser: hours section is hidden when hours are unset and there is no hoursNote', { skip: skipReason }, async () => {
+  await drive(testConfig({ hours: noHours, demo: true }), async (page) => {
+    assert.equal(await page.locator('details.hours, .hours-note').count(), 0);
+    assert.ok(!/^Hours$/m.test(await page.locator('.biz-panel').innerText()), 'no stray Hours label');
+  });
+});
+
+test('browser: hours section lists weekly hours when hours are set', { skip: skipReason }, async () => {
+  await drive(testConfig({ demo: true }), async (page) => {
+    assert.equal(await page.locator('details.hours summary').textContent(), 'Hours');
+    assert.equal(await page.locator('.hours-note').count(), 0);
+    assert.ok((await page.locator('details.hours .hrow').count()) >= 2);
+    assert.match(await page.locator('details.hours').innerText(), /9:00 AM – 5:00 PM/);
+  });
+});
+
+test('browser: showcase heading order and first step above the fold (1440x900, 390x844)', { skip: skipReason }, async () => {
+  for (const [width, height] of [[1440, 900], [390, 844]]) {
+    await drive(showcaseConfig(), async (page) => {
+      assert.equal(await page.locator('h1').count(), 1);
+      assert.equal(await page.locator('h1').textContent(), 'Art is better in person.');
+      const order = await page.locator('.biz-inner > *').evaluateAll((els) => els.slice(0, 3).map((e) => `${e.tagName}.${e.className}`));
+      assert.deepEqual(order, ['H1.biz-name', 'P.kicker', 'P.subline']);
+      assert.equal(await page.locator('.kicker').textContent(), 'Fancy Ape · Studio & Gallery · Melbourne, FL');
+      assert.equal(await page.locator('.subline').textContent(), 'Produced by The Composition Group');
+      // Gallery frames share one aspect ratio, and the whole first step (heading to tiles) fits in the first screen.
+      const ratios = await page.locator('.gallery .frame').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width / e.getBoundingClientRect().height));
+      assert.ok(Math.max(...ratios) - Math.min(...ratios) < 0.05, `frame ratios ${ratios}`);
+      const bottom = await page.evaluate(() => document.querySelector('form fieldset').getBoundingClientRect().bottom);
+      assert.ok(bottom <= height, `first step ends at ${Math.round(bottom)}px, screen is ${height}px`);
+    }, { width, height });
+  }
+});
 
 after(async () => { await browser?.close(); });

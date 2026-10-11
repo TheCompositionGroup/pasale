@@ -106,23 +106,33 @@ function galleryStrip() {
   }));
 }
 
+// Opening hours block. Hours set: weekly rows. Hours unset: the hoursNote text if configured, otherwise nothing at all.
+function hoursBlock() {
+  const c = t();
+  if (cfg.hoursUnset) {
+    return cfg.hoursNote ? el('div', { class: 'info hours-note' }, el('span', { class: 'label', text: c.labelHours }), el('p', { text: cfg.hoursNote[lang] })) : null;
+  }
+  const hours = el('details', { class: 'hours' }, el('summary', { text: c.labelHours }), el('dl', {}, hoursRows()));
+  if (matchMedia('(min-width: 960px)').matches) hours.open = true;
+  return hours;
+}
+
 function businessPanel() {
   const c = t();
   const b = cfg.business;
   const h = cfg.header;
-  const unsetNote = cfg.hoursUnset && cfg.hoursNote ? cfg.hoursNote[lang] : '';
-  const hours = el('details', { class: 'hours' }, el('summary', { text: c.labelHours }), unsetNote ? el('p', { class: 'note', text: unsetNote }) : el('dl', {}, hoursRows()));
-  if (matchMedia('(min-width: 960px)').matches) hours.open = true;
   const place = h?.location ? el('span', { text: h.location[lang] }) : b.address ? el('a', { href: mapsHref(b.address), rel: 'noopener', target: '_blank', text: b.address }) : null;
   return el('aside', { class: 'biz-panel' }, el('div', { class: 'biz-inner' },
-    el('h1', { class: 'biz-name', text: h?.line ? h.line[lang] : b.name }),
+    // With a header configured, the headline (copy.title) is the page's top heading and the header line sits under it.
+    el('h1', { class: 'biz-name', text: h ? c.title : b.name }),
+    h?.line ? el('p', { class: 'kicker', text: h.line[lang] }) : null,
     h?.subline ? el('p', { class: 'subline', text: h.subline[lang] }) : null,
     el('p', { class: 'intro', text: c.intro }),
     galleryStrip(),
     hasPhone() ? el('a', { class: 'call-card', href: telHref(b.phone) },
       el('span', { class: 'label', text: c.labelCall }), el('strong', { text: b.phone })) : null,
     place ? el('div', { class: 'info' }, el('span', { class: 'label', text: c.labelAddress }), place) : null,
-    hours));
+    hoursBlock()));
 }
 
 // Both panels on every screen. Desktop: side by side. Phones: stacked.
@@ -271,7 +281,7 @@ function renderForm(focus) {
   const form = el('form', { novalidate: true, onsubmit: submit },
     cfg.demo ? el('p', { class: 'demo', text: c.demoBanner }) : null,
     langButtons(() => renderForm('.langs button[aria-pressed=true]')),
-    el('h2', { class: 'form-title', tabindex: '-1', text: c.title }),
+    el('h2', { class: 'form-title', tabindex: '-1', text: cfg.header ? c.formTitle : c.title }),
     summary,
 
     el('fieldset', { class: servicesErr ? 'bad' : '', 'aria-describedby': servicesErr ? 'services-err' : false },

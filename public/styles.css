@@ -141,11 +141,12 @@ dt { font-size: .875rem; font-weight: 700; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 /* Optional features: header lines, gallery, attribution, config viewer. Absent unless the config turns them on. */
-.subline { margin: 6px 0 0; font-size: .9rem; color: var(--muted); }
+.kicker { margin: 8px 0 0; font-size: 1rem; font-weight: 700; line-height: 1.3; }
+.subline { margin: 4px 0 0; font-size: .9rem; color: var(--muted); }
 .gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 18px 0 0; padding: 0; list-style: none; }
 .gallery li { min-width: 0; }
 .gallery a, .gallery .item { display: block; color: inherit; text-decoration: none; }
-.gallery .frame { display: flex; align-items: center; justify-content: center; aspect-ratio: 4 / 5; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--tile); }
+.gallery .frame { display: flex; align-items: center; justify-content: center; aspect-ratio: 4 / 3; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--tile); }
 .gallery img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .gallery .ph { padding: 4px; border: 1px dashed var(--line); border-radius: 6px; font-size: .75rem; text-align: center; color: var(--muted); }
 .gallery .cap { display: block; margin-top: 4px; font-size: .75rem; line-height: 1.25; color: var(--muted); overflow-wrap: anywhere; }
@@ -154,3 +155,13 @@ dt { font-size: .875rem; font-weight: 700; color: var(--muted); }
 .howbuilt { margin: 24px 0 0; }
 .howbuilt summary { cursor: pointer; font-weight: 700; }
 .source { margin: 8px 0 0; padding: 12px; max-height: 360px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--tile); font: .75rem/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; user-select: text; }
+
+.hours-note p { margin: 2px 0 0; font-size: .9rem; color: var(--muted); }
+/* Phones: tighter header block so the form's first step stays above the fold under a gallery. */
+@media (max-width: 959px) {
+  .biz-panel { padding: 16px 16px 12px; }
+  .intro { margin: 8px 0 12px; }
+  .gallery { margin-top: 12px; gap: 6px; }
+  .info, .hours { margin-top: 12px; }
+  .form-panel { padding-top: 16px; }
+}
