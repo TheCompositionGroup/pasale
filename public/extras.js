@@ -10,18 +10,20 @@ export function galleryStrip({ el, cfg, c, lang }) {
   const artists = [...new Set(cfg.gallery.map((g) => g.artist).filter(Boolean))].join(', ');
   const credit = cfg.galleryCredit?.[lang] ?? artists;
   const list = el('ul', { class: 'gallery', 'aria-label': title || c.galleryLabel }, cfg.gallery.map((g, i) => {
-    const name = g.title[lang];
+    const name = g.title?.[lang]; // the title is optional
     const frame = el('span', { class: 'frame' });
     const item = el('li', {});
     // Frames share one height; each takes its image's own shape (4:3 when the size is unknown).
     item.style.setProperty('--r', (g.width && g.height ? g.width / g.height : 4 / 3).toFixed(4));
-    const cap = el('span', { class: 'cap', 'aria-hidden': g.image ? 'true' : false }, el('span', { class: 't', text: name }), g.artist ? el('span', { class: 'by', text: g.artist }) : null);
+    // The caption shows a title line only when there is a title, and the artist; with neither there is no caption.
+    const cap = name || g.artist ? el('span', { class: 'cap', 'aria-hidden': g.image ? 'true' : false }, name ? el('span', { class: 't', text: name }) : null, g.artist ? el('span', { class: 'by', text: g.artist }) : null) : null;
     const placeholder = () => {
       frame.replaceChildren(el('span', { class: 'ph', text: c.galleryPlaceholder }));
-      cap.removeAttribute('aria-hidden'); // the caption is the only name left
+      cap?.removeAttribute('aria-hidden'); // the caption is the only name left
     };
     if (g.image) {
-      const alt = g.artist ? `${name}, ${c.galleryBy} ${g.artist}${collection ? `, ${c.galleryFrom} ${collection}` : ''}.` : name;
+      const from = collection ? `, ${c.galleryFrom} ${collection}` : '';
+      const alt = g.artist ? `${name ? `${name}, ${c.galleryBy}` : c.galleryArtBy} ${g.artist}${from}.` : name || c.galleryPlaceholder;
       const img = el('img', { src: g.image, alt, loading: i ? 'lazy' : 'eager' });
       img.addEventListener('error', placeholder);
       frame.append(img);

@@ -82,7 +82,7 @@ test('every new string has an ES version, and ES is not a copy of EN', () => {
     ...walk(showcase.servicePrompts, 'servicePrompts'), ...walk(showcase.gallery, 'gallery'), ...walk(showcase.header, 'header'),
     ...walk({ hoursNote: showcase.hoursNote, attribution: showcase.attribution }, 'x'), ...walk(showcase.services, 'services'),
   ];
-  assert.ok(pairs.length >= 13);
+  assert.ok(pairs.length >= 10);
   for (const [where, v] of pairs) assert.ok(v.es.trim() && v.es !== v.en, `${where} needs its own Spanish text`);
   for (const k of Object.keys(showcase.copy.en)) assert.ok(k in showcase.copy.es, `copy.es.${k}`);
   for (const k of Object.keys(showcase.copy.es)) assert.ok(k in showcase.copy.en, `copy.en.${k}`);
@@ -272,6 +272,8 @@ const BROWSER_TESTS = [
   'browser: gallery images are contained on a surface mat inside fixed 4:3 frames',
   'browser: the artist credit is visible at 1440x900, 390x844 and 375x667 (EN and ES)',
   'browser: TMNK images: alt text, loading and framing',
+  'browser: no item renders Untitled or an empty title element; a title shows only where one is set',
+  'browser: gallery frames are 300px from 1024px wide up and unchanged below',
   'browser: the default page never downloads the extras; the showcase does',
   'browser: sample-hours note sits directly above the day picker, Tue-Sat open',
   'browser: layout and theme are independent',
@@ -353,7 +355,8 @@ test('browser: showcase renders each feature', { skip: skipReason }, async () =>
     assert.match(text, /Citas con tecnología de Pásale\./);
     assert.match(text, /Producido por The Composition Group/);
     assert.match(text, /Experiencia de demostración/);
-    assert.equal(await page.locator('.gallery .t', { hasText: 'Sin título' }).count(), 3);
+    assert.equal(await page.locator('.gallery .t').count(), 0, 'no title lines');
+    assert.equal(await page.locator('.gallery .by', { hasText: 'Scott Andre Patterson' }).count(), 3);
     assert.ok(!/Pick the kind|Demo experience|Sample hours|Scheduling powered|Request a visit|Any pieces/.test(text), 'no English left after toggling to ES');
   });
 });
@@ -434,6 +437,7 @@ test('browser: showcase heading order, and first step above the fold at 1440x900
         const heights = await page.locator('.gallery .frame').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
         assert.ok(Math.max(...heights) - Math.min(...heights) < 1, `${where}: frame heights ${heights}`);
         if (width <= 600) assert.ok(Math.abs(heights[0] - (height <= 700 ? 84 : 93)) < 1, `${where}: phone frame height ${heights[0]}`);
+        if (width >= 1024) assert.ok(Math.abs(heights[0] - 300) < 1, `${where}: desktop frame height ${heights[0]}`);
         // The visit-type tiles (the first step) are fully visible above the limit, and the page does not scroll sideways.
         const bottom = await page.evaluate(() => document.querySelector('.tiles.services').getBoundingClientRect().bottom);
         assert.ok(bottom <= limit, `${where}: first tiles end at ${Math.round(bottom)}px, limit ${limit}px`);
@@ -621,14 +625,13 @@ test('layout is a separate option: it validates, and a theme never turns it on',
   assert.ok(!/classList/.test(theme.slice(0, theme.indexOf("const DAY_KEYS") > 0 ? theme.indexOf("const DAY_KEYS") : theme.length)), 'applyTheme touches colors only');
 });
 
-test('showcase gallery: three TMNK items, the artist on each, one-line title changes', () => {
+test('showcase gallery: three TMNK items, the artist on each, no titles', () => {
   assert.deepEqual(showcase.gallery.map((g) => g.image), ['tmnk-1-web.jpg', 'tmnk-2-web.jpg', 'tmnk-3-web.jpg']);
   assert.deepEqual(showcase.gallery.map((g) => [g.width, g.height]), [[641, 800], [552, 800], [628, 800]]);
   assert.ok(!existsSync(`${IMAGES_DIR}/tmnk-1.jpg`) && !existsSync(`${IMAGES_DIR}/tmnk-2.jpg`) && !existsSync(`${IMAGES_DIR}/tmnk-3.jpg`), 'the large originals are removed');
   for (const g of showcase.gallery) {
     assert.equal(g.artist, 'Scott Andre Patterson');
-    assert.equal(g.title.en, 'Untitled');
-    assert.ok(g.title.es && g.title.es !== g.title.en);
+    assert.equal(g.title, undefined, 'no title: the artist shows under the frame');
     assert.ok(existsSync(`${IMAGES_DIR}/${g.image}`), `${g.image} is in the images folder`);
   }
   assert.deepEqual(showcase.galleryTitle, { en: 'The Me Nobody Knows — Scott Andre Patterson', es: 'The Me Nobody Knows — Scott Andre Patterson' });
@@ -636,6 +639,8 @@ test('showcase gallery: three TMNK items, the artist on each, one-line title cha
   const bad = (over, re) => assert.throws(() => resolveConfig({ ...showcaseConfig(), ...over }, {}), (e) => e instanceof ConfigError && re.test(e.message));
   bad({ galleryTitle: { en: 'x' } }, /galleryTitle needs text for "es"/);
   bad({ gallery: [{ image: 'a.jpg', title: { en: 'a', es: 'a' }, artist: '' }] }, /artist must be a short name/);
+  bad({ gallery: [{ image: 'a.jpg', title: { en: 'a' }, artist: 'X' }] }, /title needs text for "es"/);
+  assert.doesNotThrow(() => resolveConfig({ ...showcaseConfig(), gallery: [{ image: 'a.jpg', artist: 'X' }, { image: 'b.jpg' }] }, {}), 'titles are optional');
   bad({ gallery: [{ image: 'a.jpg', title: { en: 'a', es: 'a' }, width: 100 }] }, /width and height must both/);
   bad({ gallery: [{ image: 'a.jpg', title: { en: 'a', es: 'a' }, width: 0, height: 10 }] }, /width and height must both/);
 });
@@ -694,7 +699,14 @@ test('browser: the artist credit is visible at 1440x900, 390x844 and 375x667 (EN
         for (let i = 0; i < await credit.count(); i++) {
           const box = await credit.nth(i).boundingBox();
           assert.ok(box && box.width >= 60 && box.height >= 12, `${where}: credit ${i} has a real size ${JSON.stringify(box)}`);
-          assert.ok(box.x >= 0 && box.x + box.width <= width && box.y >= 0 && box.y + box.height <= height, `${where}: credit ${i} is on screen`);
+          // Phones, and the first row on wide screens, are on the first screen. Every credit is reachable by scrolling.
+          const firstScreen = box.x >= 0 && box.x + box.width <= width && box.y >= 0 && box.y + box.height <= height;
+          if (phone) assert.ok(firstScreen, `${where}: credit ${i} is on the first screen`);
+          if (!phone && i < 2) assert.ok(firstScreen, `${where}: credit ${i} is on the first screen`);
+          await credit.nth(i).scrollIntoViewIfNeeded();
+          // Hit test: the credit is what the visitor sees at its own centre, not clipped away or covered.
+          assert.equal(await credit.nth(i).evaluate((e) => { const r = e.getBoundingClientRect(); const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return e.contains(top); }), true, `${where}: credit ${i} is not covered or clipped`);
+          await page.evaluate(() => window.scrollTo(0, 0));
           const info = await credit.nth(i).evaluate((e) => ({ text: e.textContent, size: parseFloat(getComputedStyle(e).fontSize), visibility: getComputedStyle(e).visibility, opacity: getComputedStyle(e).opacity, clipped: e.scrollWidth > e.clientWidth + 1 }));
           assert.ok(info.text.includes('Scott Andre Patterson'), `${where}: ${info.text}`);
           assert.ok(info.size >= (phone ? 16 : 12), `${where}: credit text is ${info.size}px`);
@@ -705,8 +717,10 @@ test('browser: the artist credit is visible at 1440x900, 390x844 and 375x667 (EN
           }
         }
         if (!phone) {
+          // The heading names the artist on the first screen, and no item has a title line.
           assert.equal(await page.locator('.gallery-title').isVisible(), true, `${where}: gallery heading`);
-          assert.deepEqual(await page.locator('.gallery .t').allTextContents(), Array(3).fill(lang === 'en' ? 'Untitled' : 'Sin título'));
+          assert.ok((await page.locator('.gallery-title').boundingBox()).y + 20 <= height);
+          assert.equal(await page.locator('.gallery .t').count(), 0);
         } else {
           assert.equal(await page.locator('.gallery-title').isVisible(), false, `${where}: the heading gives way to the credit line`);
         }
@@ -719,7 +733,7 @@ test('browser: TMNK images: alt text, loading and framing', { skip: skipReason }
   await drive(showcaseConfig(), async (page) => {
     await page.waitForFunction(() => [...document.querySelectorAll('.gallery img')].every((i) => i.complete && i.naturalWidth > 0));
     const imgs = page.locator('.gallery img');
-    assert.deepEqual(await imgs.evaluateAll((els) => els.map((e) => e.getAttribute('alt'))), Array(3).fill('Untitled, by Scott Andre Patterson, from The Me Nobody Knows (TMNK).'));
+    assert.deepEqual(await imgs.evaluateAll((els) => els.map((e) => e.getAttribute('alt'))), Array(3).fill('Artwork by Scott Andre Patterson, from The Me Nobody Knows (TMNK).'));
     assert.deepEqual(await imgs.evaluateAll((els) => els.map((e) => e.getAttribute('loading'))), ['eager', 'lazy', 'lazy']);
     assert.deepEqual(await imgs.evaluateAll((els) => els.map((e) => getComputedStyle(e).objectFit)), Array(3).fill('contain'));
     // Frames follow each image's own shape: one shared height, width = height x aspect ratio, image fills the frame.
@@ -733,17 +747,20 @@ test('browser: TMNK images: alt text, loading and framing', { skip: skipReason }
       assert.ok(Math.abs(f.imgW / f.imgH - f.natural) / f.natural < 0.02, 'the picture is not stretched');
     }
     assert.equal(new Set(frames.map((f) => Math.round(f.w))).size, 3, 'three different widths, one height');
-    // One row, left-aligned, in config order.
+    // 300px frames are wider than the column, so the row wraps: left-aligned rows, in config order, nothing clipped.
+    assert.ok(frames.every((f) => Math.abs(f.h - 300) < 1), `desktop frame height is 300: ${frames.map((f) => f.h)}`);
     const li = await page.locator('.gallery li').evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return { x: b.x, y: Math.round(b.y) }; }));
-    assert.equal(new Set(li.map((b) => b.y)).size, 1, 'one row');
-    assert.ok(li[0].x < li[1].x && li[1].x < li[2].x);
-    assert.ok(li[0].x - (await page.locator('.gallery').evaluate((e) => e.getBoundingClientRect().x)) < 1, 'left-aligned');
-    // Titles sit under their frames.
-    assert.ok(await page.locator('.gallery li').evaluateAll((els) => els.every((e) => e.querySelector('.cap .t').getBoundingClientRect().y >= e.querySelector('.frame').getBoundingClientRect().bottom)));
+    const left = await page.locator('.gallery').evaluate((e) => e.getBoundingClientRect().x);
+    assert.ok(li[0].y <= li[1].y && li[1].y <= li[2].y, 'config order');
+    for (const row of new Set(li.map((b) => b.y))) assert.ok(Math.abs(li.find((b) => b.y === row).x - left) < 1, 'each row starts at the left edge');
+    assert.ok(await page.locator('.gallery').evaluate((e) => e.scrollWidth <= e.clientWidth + 1), 'no sideways scrolling');
+    // The artist sits under each frame (there are no title lines).
+    assert.equal(await page.locator('.gallery .t').count(), 0);
+    assert.ok(await page.locator('.gallery li').evaluateAll((els) => els.every((e) => e.querySelector('.cap .by').getBoundingClientRect().y >= e.querySelector('.frame').getBoundingClientRect().bottom)));
     // Captions repeat what alt says, so they are hidden from screen readers while an image is showing.
     assert.deepEqual(await page.locator('.gallery .cap').evaluateAll((els) => els.map((e) => e.getAttribute('aria-hidden'))), ['true', 'true', 'true']);
     await page.locator('.langs button[lang=es]').click();
-    assert.deepEqual(await page.locator('.gallery img').evaluateAll((els) => els.map((e) => e.getAttribute('alt'))), Array(3).fill('Sin título, de Scott Andre Patterson, de la colección The Me Nobody Knows (TMNK).'));
+    assert.deepEqual(await page.locator('.gallery img').evaluateAll((els) => els.map((e) => e.getAttribute('alt'))), Array(3).fill('Obra de Scott Andre Patterson, de la colección The Me Nobody Knows (TMNK).'));
     assert.equal(await page.locator('.gallery').getAttribute('aria-label'), 'The Me Nobody Knows — Scott Andre Patterson');
   }, { width: 1440, height: 900 });
 });
@@ -757,6 +774,46 @@ test('browser: the default page never downloads the extras; the showcase does', 
     await page.waitForFunction(() => document.querySelector('.gallery'));
     assert.ok(requests.includes('GET /extras.js') && requests.includes('GET /extras.css'), requests.join(', '));
   });
+});
+
+test('browser: no item renders Untitled or an empty title element; a title shows only where one is set', { skip: skipReason }, async () => {
+  assert.ok(!/untitled|sin título/i.test(readFileSync('examples/fancyape/fancyape.config.js', 'utf8')), 'no Untitled in the showcase config');
+  await drive(showcaseConfig(), async (page) => {
+    await page.waitForFunction(() => document.querySelector('.gallery img'));
+    for (const lang of ['en', 'es']) {
+      if (lang === 'es') await page.locator('.langs button[lang=es]').click();
+      assert.ok(!/untitled|sin título/i.test(await page.locator('body').innerText()), `${lang}: no Untitled text`);
+      assert.equal(await page.locator('.gallery .t').count(), 0, `${lang}: no title elements`);
+      assert.equal(await page.locator('.gallery .cap:empty, .gallery .t:empty, .gallery .by:empty').count(), 0, `${lang}: no empty caption elements`);
+      assert.equal(await page.locator('.gallery img[alt=""]').count(), 0);
+    }
+  });
+  // Mixed: one item has a title, one has none, one has neither title nor artist.
+  const dir = mkdtempSync(path.join(tmpdir(), 'gal-'));
+  const mixed = { ...showcaseConfig(), gallery: [
+    { image: '', title: { en: 'Moon', es: 'Luna' }, artist: 'Scott Andre Patterson' },
+    { image: '', artist: 'Scott Andre Patterson' },
+    { image: '' },
+  ] };
+  await drive(mixed, async (page) => {
+    await page.waitForFunction(() => document.querySelectorAll('.gallery li').length === 3);
+    assert.deepEqual(await page.locator('.gallery li').evaluateAll((els) => els.map((e) => [e.querySelector('.t')?.textContent ?? null, e.querySelector('.by')?.textContent ?? null, e.querySelector('.cap') !== null])), [['Moon', 'Scott Andre Patterson', true], [null, 'Scott Andre Patterson', true], [null, null, false]]);
+    assert.equal(await page.locator('.gallery .t:empty, .gallery .cap:empty').count(), 0);
+  }, { width: 1440, height: 900 }, { galleryDir: dir });
+});
+
+test('browser: gallery frames are 300px from 1024px wide up and unchanged below', { skip: skipReason }, async () => {
+  const frameHeight = async (width, height) => {
+    let h;
+    await drive(showcaseConfig(), async (page) => { await page.waitForSelector('.gallery .frame'); h = await page.locator('.gallery .frame').first().evaluate((e) => e.getBoundingClientRect().height); }, { width, height });
+    return Math.round(h);
+  };
+  assert.equal(await frameHeight(1024, 768), 300);
+  assert.equal(await frameHeight(1440, 900), 300);
+  assert.equal(await frameHeight(1023, 768), Math.round(Math.min(160, Math.max(96, 1023 * 0.105)))); // the earlier clamp, 107px
+  assert.equal(await frameHeight(768, 1024), 96);
+  assert.equal(await frameHeight(390, 844), 93);
+  assert.equal(await frameHeight(375, 667), 84);
 });
 
 after(async () => { await browser?.close(); });

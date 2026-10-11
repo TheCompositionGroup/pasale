@@ -61,7 +61,7 @@ function validateOptionalFeatures(c, problems) {
         if (g.image && !IMAGE_FILE.test(g.image)) problems.push(`${n}.image must be a local file name in the example's images folder (jpg, png, webp or avif), not a URL or path`);
         if ((g.width === undefined) !== (g.height === undefined) || [g.width, g.height].some((n) => n !== undefined && !(Number.isInteger(n) && n > 0 && n <= 20000))) problems.push(`${n}: width and height must both be whole pixel sizes, or both left out`);
         if (g.link && !HTTP_URL.test(g.link)) problems.push(`${n}.link must be an http(s) URL`);
-        perLang(g.title, `${n}.title`);
+        if (g.title !== undefined) perLang(g.title, `${n}.title`); // optional
         if (g.artist !== undefined && (typeof g.artist !== 'string' || !g.artist.trim() || g.artist.length > 100 || /[\u0000-\u001f]/.test(g.artist))) problems.push(`${n}.artist must be a short name`);
       });
     }

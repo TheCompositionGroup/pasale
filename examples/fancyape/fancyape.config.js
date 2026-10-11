@@ -35,11 +35,12 @@ export default {
   // Optional feature: up to 3 items. Images are local files in ./images (no hotlinking).
   // A missing file shows a placeholder frame. Files are served exactly as uploaded (no resizing).
   // width and height are the image's pixel size: frames share one height and take the image's own shape.
-  // `node scripts/build-showcase.js` checks them against the files. Real titles replace "Untitled" (one line each). link is optional.
+  // `node scripts/build-showcase.js` checks them against the files. title is optional (none here: the artist shows under each frame).
+  // To add one: title: { en: '...', es: '...' }. link is optional.
   gallery: [
-    { image: 'tmnk-1-web.jpg', width: 641, height: 800, title: { en: 'Untitled', es: 'Sin título' }, artist: 'Scott Andre Patterson', link: '' },
-    { image: 'tmnk-2-web.jpg', width: 552, height: 800, title: { en: 'Untitled', es: 'Sin título' }, artist: 'Scott Andre Patterson', link: '' },
-    { image: 'tmnk-3-web.jpg', width: 628, height: 800, title: { en: 'Untitled', es: 'Sin título' }, artist: 'Scott Andre Patterson', link: '' },
+    { image: 'tmnk-1-web.jpg', width: 641, height: 800, artist: 'Scott Andre Patterson', link: '' },
+    { image: 'tmnk-2-web.jpg', width: 552, height: 800, artist: 'Scott Andre Patterson', link: '' },
+    { image: 'tmnk-3-web.jpg', width: 628, height: 800, artist: 'Scott Andre Patterson', link: '' },
   ],
   // Optional: heading above the strip (desktop), the one-line credit under it (phones), and the collection named in alt text.
   galleryTitle: { en: 'The Me Nobody Knows — Scott Andre Patterson', es: 'The Me Nobody Knows — Scott Andre Patterson' },
