@@ -6,6 +6,7 @@ const root = document.getElementById('app');
 const params = new URLSearchParams(location.search);
 
 let cfg;
+let extras; // extras.js, loaded only if the config uses the gallery or the config viewer
 let lang;
 let state;
 
@@ -101,24 +102,6 @@ function hoursRows() {
     el('dd', { text: g.h ? `${fmtTime(g.h[0])} – ${fmtTime(g.h[1])}` : c.closed })));
 }
 
-// Optional gallery: a missing or broken image becomes a placeholder frame.
-function galleryStrip() {
-  if (!cfg.gallery?.length) return null;
-  const c = t();
-  return el('ul', { class: 'gallery', 'aria-label': c.galleryLabel }, cfg.gallery.map((g) => {
-    const title = g.title[lang];
-    const frame = el('span', { class: 'frame' });
-    const placeholder = () => frame.replaceChildren(el('span', { class: 'ph', text: c.galleryPlaceholder }));
-    if (g.image) {
-      const img = el('img', { src: g.image, alt: title, loading: 'lazy' });
-      img.addEventListener('error', placeholder);
-      frame.append(img);
-    } else placeholder();
-    const inner = [frame, el('span', { class: 'cap', text: title })];
-    return el('li', {}, g.link ? el('a', { href: g.link, rel: 'noopener', target: '_blank' }, inner) : el('span', { class: 'item' }, inner));
-  }));
-}
-
 // Hours: weekly rows; if unset, the hoursNote, or nothing.
 function hoursBlock() {
   const c = t();
@@ -141,7 +124,7 @@ function businessPanel() {
     h?.line ? el('p', { class: 'kicker', text: h.line[lang] }) : null,
     h?.subline ? el('p', { class: 'subline', text: h.subline[lang] }) : null,
     el('p', { class: 'intro', text: c.intro }),
-    galleryStrip(),
+    extras?.galleryStrip({ el, cfg, c, lang }),
     hasPhone() ? el('a', { class: 'call-card', href: telHref(b.phone) },
       el('span', { class: 'label', text: c.labelCall }), el('strong', { text: b.phone })) : null,
     place ? el('div', { class: 'info' }, el('span', { class: 'label', text: c.labelAddress }), place) : null,
@@ -244,28 +227,6 @@ function noteLabelText() {
   return picked ? `${cfg.servicePrompts[picked.id][lang]} ${c.optionalTag}` : c.noteLabel;
 }
 
-function configViewer() {
-  if (!cfg.showConfig) return null;
-  const c = t();
-  const pre = el('pre', { class: 'source', tabindex: '0' });
-  let loaded = false;
-  const details = el('details', { class: 'howbuilt' }, el('summary', { text: c.showConfigTitle }), el('p', { class: 'note', text: c.showConfigNote }), pre);
-  details.addEventListener('toggle', async () => {
-    if (!details.open || loaded) return;
-    loaded = true;
-    pre.textContent = c.showConfigLoading;
-    try {
-      const res = await fetch('/config-source.txt');
-      if (!res.ok) throw new Error('missing');
-      pre.textContent = await res.text();
-    } catch {
-      loaded = false;
-      pre.textContent = c.showConfigError;
-    }
-  });
-  return details;
-}
-
 function field(id, label, input, errKey) {
   const err = state.errors[errKey] ? t().fieldErrors[errKey] : '';
   return el('div', { class: 'gap' },
@@ -345,7 +306,7 @@ function renderForm(focus) {
     el('p', { class: 'privacy', text: c.privacy }),
     el('button', { class: 'submit', type: 'submit', disabled: state.sending, 'aria-busy': String(state.sending), text: state.sending ? c.sending : c.submit }),
     cfg.showCredit ? el('p', { class: 'credit' }, el('a', { href: cfg.creditUrl, rel: 'noopener', target: '_blank', text: c.credit })) : null,
-    configViewer());
+    cfg.showConfig ? extras?.configViewer({ el, c }) : null);
 
   mount(form, focus);
 }
@@ -378,6 +339,12 @@ function renderTicket() {
     hasPhone() ? el('a', { class: 'submit callbtn', href: telHref(cfg.business.phone), text: fill(c.ticketCall, { phone: cfg.business.phone }) }) : null,
     el('p', { class: 'note', text: c.ticketKeep }),
     el('button', { class: 'again', type: 'button', text: c.again, onclick: () => { const keep = state; state = newState(); state.name = keep.name; state.phone = keep.phone; renderForm('.form-title'); } })), '#ref', 'is-ticket');
+}
+
+// Fetch extras.css and extras.js together; the page renders once both are in.
+async function loadExtras() {
+  const css = new Promise((done) => { const l = el('link', { rel: 'stylesheet', href: '/extras.css' }); l.onload = l.onerror = done; document.head.append(l); });
+  return (await Promise.all([import('/extras.js'), css]))[0];
 }
 
 // Same alphabet as src/reference.js.
@@ -445,6 +412,7 @@ try {
   const wanted = params.get('lang') || navigator.language?.slice(0, 2);
   lang = cfg.languages.includes(wanted) ? wanted : cfg.defaultLanguage;
   applyTheme(cfg.theme);
+  if (cfg.gallery || cfg.showConfig) extras = await loadExtras().catch(() => null);
   if (cfg.layout === 'compact') document.documentElement.classList.add('compact');
   state = newState();
   renderForm();

@@ -10,6 +10,8 @@ const STATIC = {
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/styles.css': ['styles.css', 'text/css; charset=utf-8'],
   '/icons.js': ['icons.js', 'text/javascript; charset=utf-8'],
+  '/extras.js': ['extras.js', 'text/javascript; charset=utf-8'],
+  '/extras.css': ['extras.css', 'text/css; charset=utf-8'],
   '/sign.css': ['sign.css', 'text/css; charset=utf-8'],
   '/favicon.svg': ['favicon.svg', 'image/svg+xml'],
 };

@@ -61,6 +61,7 @@ function validateOptionalFeatures(c, problems) {
         if (g.image && !IMAGE_FILE.test(g.image)) problems.push(`${n}.image must be a local file name in the example's images folder (jpg, png, webp or avif), not a URL or path`);
         if (g.link && !HTTP_URL.test(g.link)) problems.push(`${n}.link must be an http(s) URL`);
         perLang(g.title, `${n}.title`);
+        if (g.artist !== undefined && (typeof g.artist !== 'string' || !g.artist.trim() || g.artist.length > 100 || /[\u0000-\u001f]/.test(g.artist))) problems.push(`${n}.artist must be a short name`);
       });
     }
   }
@@ -76,6 +77,7 @@ function validateOptionalFeatures(c, problems) {
       problems.push('theme.accent and theme.surface need a contrast of at least 4.5:1 (button text)');
     }
   }
+  for (const k of ['galleryTitle', 'galleryCredit', 'galleryCollection']) if (c[k] !== undefined) perLang(c[k], k);
   if (c.hoursNote !== undefined) perLang(c.hoursNote, 'hoursNote');
   if (c.attribution !== undefined) perLang(c.attribution, 'attribution');
   if (c.header !== undefined) {

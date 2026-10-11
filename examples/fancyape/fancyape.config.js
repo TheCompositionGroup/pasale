@@ -33,12 +33,17 @@ export default {
   },
 
   // Optional feature: up to 3 items. Images are local files in ./images (no hotlinking).
-  // A missing file shows a placeholder frame. Add your own files, then name them here.
+  // A missing file shows a placeholder frame. Files are served exactly as uploaded (no resizing).
+  // Real titles replace "Untitled" with a one-line change each. link is optional.
   gallery: [
-    { image: '', title: { en: 'Artwork 1', es: 'Obra 1' }, link: '' },
-    { image: '', title: { en: 'Artwork 2', es: 'Obra 2' }, link: '' },
-    { image: '', title: { en: 'Artwork 3', es: 'Obra 3' }, link: '' },
+    { image: 'tmnk-1.jpg', title: { en: 'Untitled', es: 'Sin título' }, artist: 'Scott Andre Patterson', link: '' },
+    { image: 'tmnk-2.jpg', title: { en: 'Untitled', es: 'Sin título' }, artist: 'Scott Andre Patterson', link: '' },
+    { image: 'tmnk-3.jpg', title: { en: 'Untitled', es: 'Sin título' }, artist: 'Scott Andre Patterson', link: '' },
   ],
+  // Optional: heading above the strip (desktop), the one-line credit under it (phones), and the collection named in alt text.
+  galleryTitle: { en: 'The Me Nobody Knows — Scott Andre Patterson', es: 'The Me Nobody Knows — Scott Andre Patterson' },
+  galleryCredit: { en: 'Scott Andre Patterson · TMNK', es: 'Scott Andre Patterson · TMNK' },
+  galleryCollection: { en: 'The Me Nobody Knows (TMNK)', es: 'The Me Nobody Knows (TMNK)' },
 
   // Optional feature: theme tokens, applied as CSS variables. Archival palette. Every token is optional.
   // accentSecondary (brass) is for non-text only: rules, the heading underline and focus rings.

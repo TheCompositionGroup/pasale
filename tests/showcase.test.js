@@ -1,6 +1,7 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, mkdtempSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, mkdtempSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { startApp, startInbox, testConfig } from './helpers.js';
@@ -9,7 +10,7 @@ import { DEFAULT_COPY } from '../src/defaults.js';
 import base from '../config/pasale.config.js';
 import showcase from '../examples/fancyape/fancyape.config.js';
 
-const OPTIONAL_KEYS = ['servicePrompts', 'gallery', 'theme', 'layout', 'hoursNote', 'attribution', 'header', 'showConfig', 'timeOptional', 'serviceSelect', 'hoursUnset'];
+const OPTIONAL_KEYS = ['servicePrompts', 'gallery', 'galleryTitle', 'galleryCredit', 'galleryCollection', 'theme', 'layout', 'hoursNote', 'attribution', 'header', 'showConfig', 'timeOptional', 'serviceSelect', 'hoursUnset'];
 const showcaseConfig = () => ({ ...showcase, business: { ...showcase.business } });
 const EXISTING_FANCYAPE_URLS = /pasale\.fancyape\.workers\.dev|www\.fancyape\.com\/projects/g;
 
@@ -154,7 +155,9 @@ test('wrangler: showcase env serves the Fancy Ape example in DEMO_MODE; default 
 });
 
 // Page-size budgets. The default page keeps the 60 KB budget (tests/static.test.js). The showcase has its own:
-// its size when the budget was set, plus 8 KB. Same six files: /, app.js, styles.css, /api/config, /sign, sign.css.
+// its size when the budget was set, plus 8 KB, for the code and data files it loads (the six default files plus
+// extras.js and extras.css). The gallery images are reported separately and are not part of this budget.
+const IMAGES_DIR = 'examples/fancyape/images';
 const SHOWCASE_BASELINE_BYTES = 66000;
 const SHOWCASE_BUDGET_BYTES = SHOWCASE_BASELINE_BYTES + 8 * 1024;
 
@@ -162,10 +165,11 @@ test('showcase page download stays inside its own budget (baseline + 8 KB)', asy
   const app = await startApp({ config: showcaseConfig() });
   try {
     let total = 0;
-    for (const p of ['/', '/app.js', '/styles.css', '/api/config', '/sign', '/sign.css']) {
+    for (const p of ['/', '/app.js', '/styles.css', '/api/config', '/sign', '/sign.css', '/extras.js', '/extras.css']) {
       total += (await (await fetch(`${app.base}${p}`)).arrayBuffer()).byteLength;
     }
-    t.diagnostic(`showcase ${total} bytes, budget ${SHOWCASE_BUDGET_BYTES}`);
+    const images = readdirSync(IMAGES_DIR).filter((f) => /\.(jpe?g|png|webp|avif)$/i.test(f)).reduce((n, f) => n + statSync(`${IMAGES_DIR}/${f}`).size, 0);
+    t.diagnostic(`showcase code and data ${total} bytes (budget ${SHOWCASE_BUDGET_BYTES}); gallery images ${images} bytes; total with images ${total + images} bytes`);
     assert.ok(total < SHOWCASE_BUDGET_BYTES, `showcase is ${total} bytes, budget ${SHOWCASE_BUDGET_BYTES}`);
   } finally {
     await app.close();
@@ -263,6 +267,9 @@ const BROWSER_TESTS = [
   'browser: default page renders with the original theme',
   'browser: showcase applies the archival palette to every part of the page',
   'browser: gallery images are contained on a surface mat inside fixed 4:3 frames',
+  'browser: the artist credit is visible at 1440x900, 390x844 and 375x667 (EN and ES)',
+  'browser: TMNK images: alt text, loading and framing',
+  'browser: the default page never downloads the extras; the showcase does',
   'browser: sample-hours note sits directly above the day picker, Tue-Sat open',
   'browser: layout and theme are independent',
   'browser: the frame icon draws inside the 24x24 grid for Art display inquiry',
@@ -281,7 +288,7 @@ if (!browser) {
 const skipReason = browser ? false : `SKIPPED: Playwright not usable (${browserProblem})`;
 
 async function drive(config, fn, viewport = { width: 1280, height: 800 }, handlerOptions = {}) {
-  const app = await startApp({ config, handlerOptions: { sourceFile: 'examples/fancyape/fancyape.config.js', ...handlerOptions } });
+  const app = await startApp({ config, handlerOptions: { sourceFile: 'examples/fancyape/fancyape.config.js', galleryDir: IMAGES_DIR, ...handlerOptions } });
   const page = await browser.newPage({ viewport });
   const requests = [];
   page.on('request', (r) => requests.push(`${r.method()} ${new URL(r.url()).pathname}`));
@@ -317,9 +324,11 @@ test('browser: showcase renders each feature', { skip: skipReason }, async () =>
     assert.match(text, /Demo experience — no requests are sent or saved\./);
     assert.match(text, /Your details are used only to respond to your request\./);
     assert.equal(await page.locator('button.submit').textContent(), 'Request a visit — Demo');
-    // gallery: three placeholder frames labeled "Artwork image"
+    // gallery: three framed images with title and artist, under the gallery heading
     assert.equal(await page.locator('.gallery li').count(), 3);
-    assert.equal(await page.locator('.gallery .ph', { hasText: 'Artwork image' }).count(), 3);
+    assert.equal(await page.locator('.gallery img').count(), 3);
+    assert.equal(await page.locator('.gallery .ph').count(), 0);
+    assert.equal(await page.locator('.gallery-title').textContent(), 'The Me Nobody Knows — Scott Andre Patterson');
     // theme applied
     assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--accent')), showcase.theme.accent);
     // single select + prompt swap
@@ -340,7 +349,7 @@ test('browser: showcase renders each feature', { skip: skipReason }, async () =>
     assert.match(text, /Citas con tecnología de Pásale\./);
     assert.match(text, /Producido por The Composition Group/);
     assert.match(text, /Experiencia de demostración/);
-    assert.equal(await page.locator('.gallery .ph', { hasText: 'Imagen de la obra' }).count(), 3);
+    assert.equal(await page.locator('.gallery .t', { hasText: 'Sin título' }).count(), 3);
     assert.ok(!/Pick the kind|Demo experience|Sample hours|Scheduling powered|Request a visit|Any pieces/.test(text), 'no English left after toggling to ES');
   });
 });
@@ -605,6 +614,106 @@ test('layout is a separate option: it validates, and a theme never turns it on',
   assert.ok(/classList\.add\('compact'\)/.test(js) && /cfg\.layout === 'compact'/.test(js));
   const theme = js.slice(js.indexOf('function applyTheme'), js.indexOf('function applyTheme') + 2500);
   assert.ok(!/classList/.test(theme.slice(0, theme.indexOf("const DAY_KEYS") > 0 ? theme.indexOf("const DAY_KEYS") : theme.length)), 'applyTheme touches colors only');
+});
+
+test('showcase gallery: three TMNK items, the artist on each, one-line title changes', () => {
+  assert.deepEqual(showcase.gallery.map((g) => g.image), ['tmnk-1.jpg', 'tmnk-2.jpg', 'tmnk-3.jpg']);
+  for (const g of showcase.gallery) {
+    assert.equal(g.artist, 'Scott Andre Patterson');
+    assert.equal(g.title.en, 'Untitled');
+    assert.ok(g.title.es && g.title.es !== g.title.en);
+    assert.ok(existsSync(`${IMAGES_DIR}/${g.image}`), `${g.image} is in the images folder`);
+  }
+  assert.deepEqual(showcase.galleryTitle, { en: 'The Me Nobody Knows — Scott Andre Patterson', es: 'The Me Nobody Knows — Scott Andre Patterson' });
+  assert.equal(showcase.galleryCredit.en, 'Scott Andre Patterson · TMNK');
+  const bad = (over, re) => assert.throws(() => resolveConfig({ ...showcaseConfig(), ...over }, {}), (e) => e instanceof ConfigError && re.test(e.message));
+  bad({ galleryTitle: { en: 'x' } }, /galleryTitle needs text for "es"/);
+  bad({ gallery: [{ image: 'a.jpg', title: { en: 'a', es: 'a' }, artist: '' }] }, /artist must be a short name/);
+});
+
+test('gallery images are served and copied exactly as uploaded (byte for byte)', async () => {
+  const app = await startApp({ config: showcaseConfig(), handlerOptions: { galleryDir: IMAGES_DIR } });
+  try {
+    for (const n of [1, 2, 3]) {
+      const file = readFileSync(`${IMAGES_DIR}/tmnk-${n}.jpg`);
+      const res = await fetch(`${app.base}/gallery/tmnk-${n}.jpg`);
+      assert.equal(res.headers.get('content-type'), 'image/jpeg');
+      assert.equal(Buffer.compare(Buffer.from(await res.arrayBuffer()), file), 0, `tmnk-${n}.jpg served unchanged`);
+    }
+  } finally {
+    await app.close();
+  }
+  // The Cloudflare build step copies the same files without touching them.
+  execFileSync('node', ['scripts/build-showcase.js'], { stdio: 'ignore' });
+  for (const n of [1, 2, 3]) {
+    assert.equal(Buffer.compare(readFileSync(`.showcase/public/gallery/tmnk-${n}.jpg`), readFileSync(`${IMAGES_DIR}/tmnk-${n}.jpg`)), 0, `tmnk-${n}.jpg copied unchanged`);
+  }
+});
+
+test('browser: the artist credit is visible at 1440x900, 390x844 and 375x667 (EN and ES)', { skip: skipReason }, async () => {
+  for (const { width, height } of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 375, height: 667 }]) {
+    await drive(showcaseConfig(), async (page) => {
+      await page.waitForFunction(() => [...document.querySelectorAll('.gallery img')].every((i) => i.complete));
+      for (const lang of ['en', 'es']) {
+        if (lang === 'es') await page.locator('.langs button[lang=es]').click();
+        const where = `${width}x${height} ${lang}`;
+        const phone = width <= 600;
+        // Phones show the one-line credit under the strip; wider screens show the artist under every item.
+        const credit = page.locator(phone ? '.gallery-credit' : '.gallery .by');
+        assert.equal(await credit.count(), phone ? 1 : 3, where);
+        for (let i = 0; i < await credit.count(); i++) {
+          const box = await credit.nth(i).boundingBox();
+          assert.ok(box && box.width >= 60 && box.height >= 12, `${where}: credit ${i} has a real size ${JSON.stringify(box)}`);
+          assert.ok(box.x >= 0 && box.x + box.width <= width && box.y >= 0 && box.y + box.height <= height, `${where}: credit ${i} is on screen`);
+          const info = await credit.nth(i).evaluate((e) => ({ text: e.textContent, size: parseFloat(getComputedStyle(e).fontSize), visibility: getComputedStyle(e).visibility, opacity: getComputedStyle(e).opacity, clipped: e.scrollWidth > e.clientWidth + 1 }));
+          assert.ok(info.text.includes('Scott Andre Patterson'), `${where}: ${info.text}`);
+          assert.ok(info.size >= (phone ? 16 : 12), `${where}: credit text is ${info.size}px`);
+          assert.deepEqual([info.visibility, info.opacity, info.clipped], ['visible', '1', false], where);
+          if (phone) {
+            assert.equal(info.text, 'Scott Andre Patterson · TMNK');
+            assert.ok(box.height < info.size * 1.7, `${where}: the credit is one line`);
+          }
+        }
+        if (!phone) {
+          assert.equal(await page.locator('.gallery-title').isVisible(), true, `${where}: gallery heading`);
+          assert.deepEqual(await page.locator('.gallery .t').allTextContents(), Array(3).fill(lang === 'en' ? 'Untitled' : 'Sin título'));
+        } else {
+          assert.equal(await page.locator('.gallery-title').isVisible(), false, `${where}: the heading gives way to the credit line`);
+        }
+      }
+    }, { width, height });
+  }
+});
+
+test('browser: TMNK images: alt text, loading and framing', { skip: skipReason }, async () => {
+  await drive(showcaseConfig(), async (page) => {
+    await page.waitForFunction(() => [...document.querySelectorAll('.gallery img')].every((i) => i.complete && i.naturalWidth > 0));
+    const imgs = page.locator('.gallery img');
+    assert.deepEqual(await imgs.evaluateAll((els) => els.map((e) => e.getAttribute('alt'))), Array(3).fill('Untitled, by Scott Andre Patterson, from The Me Nobody Knows (TMNK).'));
+    assert.deepEqual(await imgs.evaluateAll((els) => els.map((e) => e.getAttribute('loading'))), ['eager', 'lazy', 'lazy']);
+    assert.deepEqual(await imgs.evaluateAll((els) => els.map((e) => getComputedStyle(e).objectFit)), Array(3).fill('contain'));
+    const ratios = await page.locator('.gallery .frame').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width / e.getBoundingClientRect().height));
+    assert.ok(ratios.every((r) => Math.abs(r - 4 / 3) < 0.03), `frames stay 4:3: ${ratios}`);
+    // Portrait art keeps its own proportions inside the landscape frame: the picture box is not stretched to the frame.
+    const shown = await imgs.evaluateAll((els) => els.map((e) => { const w = e.naturalWidth / e.naturalHeight; const box = e.getBoundingClientRect(); return { natural: w, box: box.width / box.height }; }));
+    assert.ok(shown.every((s) => s.natural < 1 && s.box > 1), JSON.stringify(shown));
+    // Captions repeat what alt says, so they are hidden from screen readers while an image is showing.
+    assert.deepEqual(await page.locator('.gallery .cap').evaluateAll((els) => els.map((e) => e.getAttribute('aria-hidden'))), ['true', 'true', 'true']);
+    await page.locator('.langs button[lang=es]').click();
+    assert.deepEqual(await page.locator('.gallery img').evaluateAll((els) => els.map((e) => e.getAttribute('alt'))), Array(3).fill('Sin título, de Scott Andre Patterson, de The Me Nobody Knows (TMNK).'));
+    assert.equal(await page.locator('.gallery').getAttribute('aria-label'), 'The Me Nobody Knows — Scott Andre Patterson');
+  }, { width: 1440, height: 900 });
+});
+
+test('browser: the default page never downloads the extras; the showcase does', { skip: skipReason }, async () => {
+  await drive(testConfig({ demo: true }), async (page, requests) => {
+    await page.waitForTimeout(300);
+    assert.deepEqual(requests.filter((r) => /extras|gallery|config-source/.test(r)), []);
+  });
+  await drive(showcaseConfig(), async (page, requests) => {
+    await page.waitForFunction(() => document.querySelector('.gallery'));
+    assert.ok(requests.includes('GET /extras.js') && requests.includes('GET /extras.css'), requests.join(', '));
+  });
 });
 
 after(async () => { await browser?.close(); });

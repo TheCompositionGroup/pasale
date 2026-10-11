@@ -82,7 +82,10 @@ export function createCore({ config, env = {}, now = () => new Date(), logger = 
       // Optional features. Each is left out of the response unless the config turns it on.
       serviceSelect: config.serviceSelect === 'single' ? 'single' : undefined,
       servicePrompts: config.servicePrompts,
-      gallery: config.gallery?.map((g) => ({ image: g.image ? `/gallery/${g.image}` : '', title: g.title, link: g.link ?? '' })),
+      gallery: config.gallery?.map((g) => ({ image: g.image ? `/gallery/${g.image}` : '', title: g.title, artist: g.artist, link: g.link ?? '' })),
+      galleryTitle: config.galleryTitle,
+      galleryCredit: config.galleryCredit,
+      galleryCollection: config.galleryCollection,
       theme: config.theme,
       layout: config.layout === 'compact' ? 'compact' : undefined,
       hoursNote: config.hoursNote,
