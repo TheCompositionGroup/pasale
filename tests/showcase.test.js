@@ -209,7 +209,7 @@ const BROWSER_TESTS = [
   'browser: hours section shows the hoursNote when hours are unset',
   'browser: hours section is hidden when hours are unset and there is no hoursNote',
   'browser: hours section lists weekly hours when hours are set',
-  'browser: showcase heading order and first step above the fold (1440x900, 390x844)',
+  'browser: showcase heading order, and first step above the fold at 1440x900, 390x844 and 375x667 (EN and ES)',
 ];
 let browser = null;
 let browserProblem = '';
@@ -344,20 +344,38 @@ test('browser: hours section lists weekly hours when hours are set', { skip: ski
   });
 });
 
-test('browser: showcase heading order and first step above the fold (1440x900, 390x844)', { skip: skipReason }, async () => {
-  for (const [width, height] of [[1440, 900], [390, 844]]) {
+// Where the visit-type tiles must end. Phones get extra room for Safari's address bar and toolbar (~100px).
+const FOLD_CASES = [
+  { width: 1440, height: 900, limit: 900 },
+  { width: 390, height: 844, limit: 700 },
+  { width: 375, height: 667, limit: 600 }, // iPhone SE
+];
+
+test('browser: showcase heading order, and first step above the fold at 1440x900, 390x844 and 375x667 (EN and ES)', { skip: skipReason }, async () => {
+  for (const { width, height, limit } of FOLD_CASES) {
     await drive(showcaseConfig(), async (page) => {
-      assert.equal(await page.locator('h1').count(), 1);
-      assert.equal(await page.locator('h1').textContent(), 'Art is better in person.');
-      const order = await page.locator('.biz-inner > *').evaluateAll((els) => els.slice(0, 3).map((e) => `${e.tagName}.${e.className}`));
-      assert.deepEqual(order, ['H1.biz-name', 'P.kicker', 'P.subline']);
-      assert.equal(await page.locator('.kicker').textContent(), 'Fancy Ape · Studio & Gallery · Melbourne, FL');
-      assert.equal(await page.locator('.subline').textContent(), 'Produced by The Composition Group');
-      // Gallery frames share one aspect ratio, and the whole first step (heading to tiles) fits in the first screen.
-      const ratios = await page.locator('.gallery .frame').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width / e.getBoundingClientRect().height));
-      assert.ok(Math.max(...ratios) - Math.min(...ratios) < 0.05, `frame ratios ${ratios}`);
-      const bottom = await page.evaluate(() => document.querySelector('form fieldset').getBoundingClientRect().bottom);
-      assert.ok(bottom <= height, `first step ends at ${Math.round(bottom)}px, screen is ${height}px`);
+      for (const lang of ['en', 'es']) {
+        if (lang === 'es') await page.locator('.langs button[lang=es]').click();
+        const where = `${width}x${height} ${lang}`;
+        assert.equal(await page.locator('h1').count(), 1);
+        assert.equal(await page.locator('h1').textContent(), lang === 'en' ? 'Art is better in person.' : 'El arte es mejor en persona.');
+        const order = await page.locator('.biz-inner > *').evaluateAll((els) => els.slice(0, 3).map((e) => `${e.tagName}.${e.className}`));
+        assert.deepEqual(order, ['H1.biz-name', 'P.kicker', 'P.subline']);
+        assert.equal(await page.locator('.kicker').textContent(), showcase.header.line[lang]);
+        assert.equal(await page.locator('.subline').textContent(), showcase.header.subline[lang]);
+        // Gallery frames share one aspect ratio.
+        const ratios = await page.locator('.gallery .frame').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width / e.getBoundingClientRect().height));
+        assert.ok(Math.max(...ratios) - Math.min(...ratios) < 0.05, `${where}: frame ratios ${ratios}`);
+        // The visit-type tiles (the first step) are fully visible above the limit, and the page does not scroll sideways.
+        const bottom = await page.evaluate(() => document.querySelector('.tiles.services').getBoundingClientRect().bottom);
+        assert.ok(bottom <= limit, `${where}: first tiles end at ${Math.round(bottom)}px, limit ${limit}px`);
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${where}: page scrolls sideways`);
+        // On phones the header text is 16px or more; tap targets are 44px or more everywhere.
+        const sizes = await page.locator('.kicker, .subline, .intro:visible').evaluateAll((els) => els.map((e) => parseFloat(getComputedStyle(e).fontSize)));
+        if (width <= 600) assert.ok(sizes.every((n) => n >= 16), `${where}: header text sizes ${sizes}`);
+        const targets = await page.locator('.tiles.services .tile > span, .langs button').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+        assert.ok(targets.every((n) => n >= 44), `${where}: tap target heights ${targets.map(Math.round)}`);
+      }
     }, { width, height });
   }
 });

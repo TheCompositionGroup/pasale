@@ -20,7 +20,7 @@ export default {
   // Visit types. serviceSelect: 'single' makes them a pick-one choice.
   services: [
     { id: 'view', icon: 'store', label: { en: 'View artwork', es: 'Ver obras' } },
-    { id: 'display', icon: 'box', label: { en: 'Art display inquiry', es: 'Consulta para exhibir arte' } },
+    { id: 'display', icon: 'box', label: { en: 'Art display inquiry', es: 'Consulta de exhibición' } },
     { id: 'consult', icon: 'chat', label: { en: 'Project consultation', es: 'Consulta de proyecto' } },
   ],
   serviceSelect: 'single',
@@ -54,7 +54,7 @@ export default {
   header: {
     line: { en: 'Fancy Ape · Studio & Gallery · Melbourne, FL', es: 'Fancy Ape · Estudio y Galería · Melbourne, FL' },
     subline: { en: 'Produced by The Composition Group', es: 'Producido por The Composition Group' },
-    location: { en: "Retail at America's Antique Mall, Booth 117", es: "Venta al público en America's Antique Mall, puesto 117" },
+    location: { en: "Retail at America's Antique Mall, Booth 117", es: "Venta en America's Antique Mall, puesto 117" },
   },
 
   // Optional feature: "How this page is built" shows this file, read-only. Requires demo: true.
@@ -90,7 +90,7 @@ export default {
     es: {
       title: 'El arte es mejor en persona.',
       formTitle: 'Solicitar una visita',
-      intro: 'Solicita una visita para ver las obras en persona. Esta es una demostración de una página Pásale.',
+      intro: 'Solicita una visita para ver obras en persona. Esta es una demo de Pásale.',
       whatHintSingle: 'Elige el tipo de visita.',
       privacy: 'Usamos tus datos solo para responder a tu solicitud.',
       submit: 'Solicitar una visita — Demo',

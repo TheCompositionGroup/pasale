@@ -50,7 +50,7 @@ body { margin: 0; background: var(--page); color: var(--ink); font: 16px/1.5 sys
 /* Form */
 .demo { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 12px; font-weight: 600; margin: 0 0 16px; }
 .langs { display: inline-flex; float: right; padding: 4px; gap: 2px; background: var(--tile); border: 1px solid var(--line); border-radius: 999px; }
-.langs button { min-height: 40px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: .875rem; font-weight: 700; cursor: pointer; transition: background-color .15s, color .15s; }
+.langs button { min-height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: .875rem; font-weight: 700; cursor: pointer; transition: background-color .15s, color .15s; }
 .langs button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 .form-title { clear: both; margin: 0; padding-top: 4px; font-size: 1.25rem; font-weight: 800; }
 .form-title::after { content: ""; display: block; width: 32px; height: 4px; margin-top: 8px; border-radius: 999px; background: var(--accent); }
@@ -164,4 +164,47 @@ dt { font-size: .875rem; font-weight: 700; color: var(--muted); }
   .gallery { margin-top: 12px; gap: 6px; }
   .info, .hours { margin-top: 12px; }
   .form-panel { padding-top: 16px; }
+}
+
+/* Small phones (iPhone SE up to large phones): fit the first step above the fold even after Safari's
+   address bar and toolbar take ~100px. Text stays at 16px or more and tap targets at 44px or more. */
+@media (max-width: 600px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .biz-panel { padding: 12px 16px 8px; min-width: 0; }
+  .biz-name { font-size: 1.5rem; }
+  .kicker { margin-top: 4px; font-size: 1rem; }
+  .subline { margin-top: 2px; font-size: 1rem; }
+  .intro { margin: 6px 0 8px; }
+  /* Gallery: one row that scrolls sideways, sized so the third frame peeks in. Titles stay for screen readers. */
+  .gallery { display: flex; gap: 8px; margin: 8px -16px 0; padding: 0 16px 4px; overflow-x: auto; scroll-snap-type: x proximity; scroll-padding-inline: 16px; scrollbar-width: none; }
+  .gallery::-webkit-scrollbar { display: none; }
+  .gallery li { flex: 0 0 124px; scroll-snap-align: start; }
+  .gallery .cap { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .gallery li { position: relative; }
+  .info, .hours { margin-top: 8px; }
+  .form-panel { padding: 12px 16px 32px; }
+  .demo { margin-bottom: 8px; padding: 6px 12px; }
+  /* Language toggle sits beside the form heading instead of above it. */
+  form > .form-title { clear: none; padding-top: 8px; font-size: 1.125rem; }
+  .langs button { padding: 0 12px; }
+  .tiles.services > .tile > span { min-height: 96px; gap: 6px; }
+  .ico { width: 36px; height: 36px; }
+  .form-title::after { margin-top: 6px; }
+  legend.step { margin-bottom: 6px; }
+  fieldset .note { margin-bottom: 8px; }
+}
+
+/* Short phone screens (iPhone SE, 667px tall): also drop the intro sentence and compact the visit-type tiles. */
+@media (max-width: 600px) and (max-height: 700px) {
+  .intro { display: none; }
+  .gallery li { flex-basis: 112px; }
+  .tiles.services > .tile > span { min-height: 88px; gap: 4px; padding: 8px 6px; }
+  .ico { width: 32px; height: 32px; }
+}
+@media (max-width: 600px) and (max-height: 700px) {
+  .hours-note { display: flex; align-items: baseline; gap: 8px; }
+  .hours-note p { margin: 0; }
+  .biz-panel { padding-bottom: 4px; }
+  .form-panel { padding-top: 8px; }
+  .demo { margin-bottom: 6px; }
 }
