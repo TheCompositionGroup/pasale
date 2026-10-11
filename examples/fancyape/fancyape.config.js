@@ -40,8 +40,21 @@ export default {
     { image: '', title: { en: 'Artwork 3', es: 'Obra 3' }, link: '' },
   ],
 
-  // Optional feature: theme tokens, applied as CSS variables. Ivory and deep forest green.
-  theme: { background: '#f6f1e3', surface: '#fffdf6', accent: '#1f4d3a', text: '#1e2a24' },
+  // Optional feature: theme tokens, applied as CSS variables. Archival palette. Every token is optional.
+  // accentSecondary (brass) is for non-text only: rules, the heading underline and focus rings.
+  theme: {
+    background: '#F4F0E7',
+    surface: '#FAF8F2',
+    text: '#252521',
+    textMuted: '#68645C', // section labels and supporting text
+    border: '#D6D0C4', // cards, panels and dividers
+    accent: '#495A50', // deep green: main button, selected card, icons
+    accentHover: '#37443D',
+    accentSecondary: '#9A7C48',
+    notice: '#EEE5CF', // demo banner
+    noticeText: '#3B342A',
+    footer: '#EAE4D8',
+  },
 
   // Optional feature: shown while hours are unset.
   hoursNote: { en: 'Hours: set by business', es: 'Horario: lo define el negocio' },

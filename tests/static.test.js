@@ -7,12 +7,15 @@ import base from '../config/pasale.config.js';
 
 test('everything a visitor downloads stays well under 200 KB', async () => {
   const app = await startApp({});
-  let total = 0;
-  for (const p of ['/', '/app.js', '/styles.css', '/api/config', '/sign', '/sign.css']) {
-    total += (await (await fetch(`${app.base}${p}`)).arrayBuffer()).byteLength;
+  try {
+    let total = 0;
+    for (const p of ['/', '/app.js', '/styles.css', '/api/config', '/sign', '/sign.css']) {
+      total += (await (await fetch(`${app.base}${p}`)).arrayBuffer()).byteLength;
+    }
+    assert.ok(total < 60 * 1024, `total ${total} bytes`);
+  } finally {
+    await app.close();
   }
-  assert.ok(total < 60 * 1024, `total ${total} bytes`);
-  await app.close();
 });
 
 test('no animation library or third-party scripts and styles', () => {

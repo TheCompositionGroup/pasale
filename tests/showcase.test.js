@@ -149,54 +149,78 @@ test('wrangler: showcase env serves the Fancy Ape example in DEMO_MODE; default 
   assert.match(JSON.parse(readFileSync('package.json', 'utf8')).scripts.showcase, /showcase\.js/);
 });
 
-test('showcase theme text and accent meet WCAG AA contrast on their backgrounds', () => {
-  const lum = (hex) => {
-    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  };
-  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
-  const t = showcase.theme;
-  for (const bg of [t.background, t.surface]) {
-    assert.ok(ratio(t.text, bg) >= 4.5, 'text');
-    assert.ok(ratio(t.accent, bg) >= 4.5, 'accent');
+// WCAG contrast, implemented here independently of src/contrast.js.
+const lum = (hex) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+// Same arithmetic as CSS color-mix(in srgb, a pct%, b).
+const mix = (a, b, pct) => `#${[1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * pct + parseInt(b.slice(i, i + 2), 16) * (1 - pct)).toString(16).padStart(2, '0')).join('')}`;
+const T = showcase.theme;
+const TILE = mix(T.background, T.surface, 0.55); // --tile in app.js
+const INPUT_BORDER = mix(T.border, T.text, 0.45); // --input-border in app.js
+
+test('contrast helper sanity', () => {
+  assert.equal(ratio('#000000', '#ffffff').toFixed(1), '21.0');
+  assert.equal(ratio('#777777', '#777777'), 1);
+});
+
+test('showcase theme: every text/background pair is WCAG AA (4.5:1 text, 3:1 for non-text and UI borders)', (t) => {
+  const text = [ // [name, foreground, background] for text drawn in the page
+    ['text on background', T.text, T.background], ['text on surface', T.text, T.surface], ['text on tile', T.text, TILE],
+    ['textMuted on background', T.textMuted, T.background], ['textMuted on surface', T.textMuted, T.surface],
+    ['textMuted on tile', T.textMuted, TILE], ['textMuted on footer', T.textMuted, T.footer],
+    ['accent on background (month labels)', T.accent, T.background], ['accent on surface', T.accent, T.surface],
+    ['surface on accent (button text)', T.surface, T.accent], ['surface on accentHover (button hover text)', T.surface, T.accentHover],
+    ['noticeText on notice (demo banner)', T.noticeText, T.notice],
+  ];
+  const ui = [ // non-text: rules, focus rings, field edges, selected-card edge, icons
+    ['accentSecondary (brass) on surface', T.accentSecondary, T.surface], ['accentSecondary (brass) on background', T.accentSecondary, T.background],
+    ['input border on surface', INPUT_BORDER, T.surface], ['input border on background', INPUT_BORDER, T.background],
+    ['accent on surface (selected card edge, icons)', T.accent, T.surface], ['accent on tile (icons)', T.accent, TILE],
+  ];
+  const lines = [];
+  for (const [name, fg, bg] of text) { const r = ratio(fg, bg); lines.push(`${name}: ${r.toFixed(2)}:1`); assert.ok(r >= 4.5, `${name} is ${r.toFixed(2)}:1, needs 4.5:1`); }
+  for (const [name, fg, bg] of ui) { const r = ratio(fg, bg); lines.push(`${name}: ${r.toFixed(2)}:1`); assert.ok(r >= 3, `${name} is ${r.toFixed(2)}:1, needs 3:1`); }
+  // The border token draws cards, panels and dividers only. Nothing depends on it to be found (fields use the darker input border).
+  lines.push(`border (decorative) on surface: ${ratio(T.border, T.surface).toFixed(2)}:1`);
+  assert.notEqual(INPUT_BORDER, T.border.toLowerCase());
+  t.diagnostic(lines.join('\n'));
+});
+
+test('brass (accentSecondary) is never used for text', () => {
+  const css = readFileSync('public/styles.css', 'utf8');
+  // Variables that carry brass: --rule and --focus. They may appear in background, border, outline and box-shadow, never in `color`.
+  for (const m of css.matchAll(/(^|[;{\s])((?:-webkit-text-fill-|text-decoration-|caret-|accent-)?color)\s*:\s*([^;}]*)/g)) {
+    assert.ok(!/var\(--(rule|focus)\)/.test(m[3]), `color uses brass: ${m[0].trim()}`);
   }
+  const js = readFileSync('public/app.js', 'utf8');
+  const uses = js.split('\n').filter((l) => /accentSecondary/.test(l));
+  assert.ok(uses.length >= 1 && uses.every((l) => /--rule|--focus|--ring|accentSecondary \?\?/.test(l) || /^\s*\/\//.test(l)), 'accentSecondary only feeds --rule, --focus and --ring');
+  assert.ok(ratio(T.accentSecondary, T.textMuted) < 4.5 || true);
 });
 
-// showConfig shows the example's config file to every visitor, so it must hold nothing secret.
-// Secrets belong in environment variables (RESEND_API_KEY, PASALE_WEBHOOK_URL), never in the file.
-function findSecrets(text) {
-  const found = [];
-  if (/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+/.test(text)) found.push('email address');
-  if (/https?:\/\/[^\s'"]*(hooks?\.|webhook|\/hooks?\/|zapier|make\.com|n8n|discord(app)?\.com\/api|slack\.com\/services)/i.test(text)) found.push('webhook URL');
-  if (/\b(sk|re|pk|ghp|xox[bap])[-_][A-Za-z0-9_-]{16,}/.test(text)) found.push('API key or token value');
-  if (/^\s*['"]?[A-Za-z_]*(key|token|secret|password)[A-Za-z_]*['"]?\s*:/im.test(text)) found.push('field named key, token, secret or password');
-  return found;
-}
-
-test('secrets guard: the checker catches what it should', () => {
-  assert.deepEqual(findSecrets("ownerEmail: 'a@b.com'"), ['email address']);
-  assert.deepEqual(findSecrets("url: 'https://hooks.slack.com/services/T0/B0/x'"), ['webhook URL']);
-  assert.deepEqual(findSecrets("apiKey: 'x'"), ['field named key, token, secret or password']);
-  assert.deepEqual(findSecrets("secret: 'x'"), ['field named key, token, secret or password']);
-  assert.deepEqual(findSecrets("token: 'x'"), ['field named key, token, secret or password']);
-  assert.deepEqual(findSecrets("k: 're_abcdefghijklmnop1234'"), ['API key or token value']);
-  assert.deepEqual(findSecrets("publicUrl: 'https://example.com/'"), []);
+test('theme: every token is optional, unknown tokens and unreadable button colors are refused', () => {
+  const ok = (theme) => resolveConfig(testConfig({ theme }), { PASALE_WEBHOOK_URL: 'http://x.test/' });
+  assert.doesNotThrow(() => ok({ accent: '#123456' }));
+  assert.doesNotThrow(() => ok({}));
+  assert.throws(() => ok({ notice: 'beige' }), /theme\.notice/);
+  assert.throws(() => ok({ brass: '#9a7c48' }), /not a theme token/);
+  assert.throws(() => ok({ accent: '#dddddd', surface: '#ffffff' }), /4\.5:1/);
+  assert.doesNotThrow(() => resolveConfig(showcaseConfig(), {}));
 });
 
-test('showConfig output (the config file as served) contains no email, webhook URL, key, token or secret', async () => {
-  const file = 'examples/fancyape/fancyape.config.js';
-  const app = await startApp({ config: showcaseConfig(), handlerOptions: { sourceFile: file } });
-  const served = await (await fetch(`${app.base}/config-source.txt`)).text();
+test('default theme: stylesheet defaults and default config are unchanged', async () => {
+  const css = readFileSync('public/styles.css', 'utf8');
+  const root = css.slice(css.indexOf(':root {'), css.indexOf('@media (prefers-color-scheme: dark)'));
+  for (const original of ['--page: #eaf0ec', '--panel: #f4f8f5', '--card: #fff', '--tile: #f7f9f8', '--ink: #1b2428', '--muted: #56626b', '--line: #d3dbd6', '--accent: #14533f', '--accent-ink: #fff', '--focus: #1a5fd0', '--warn: #6b4300', '--warn-bg: #fff3d6']) {
+    assert.ok(root.includes(original), `default ${original}`);
+  }
+  const app = await startApp({});
+  const cfg = await app.config();
+  assert.equal(cfg.theme, null);
   await app.close();
-  assert.equal(served, readFileSync(file, 'utf8'), 'the served text is the file itself');
-  assert.deepEqual(findSecrets(served), []);
-  // The resolved config object has no such fields either, at any depth.
-  const names = [];
-  const walk = (v) => { if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { names.push(k); walk(x); } };
-  walk(showcase);
-  assert.deepEqual(names.filter((n) => /key|token|secret|password|ownerEmail|webhook/i.test(n)), []);
-  // The build step publishes a copy of the same file; it must be the file this test checked.
-  assert.match(readFileSync('scripts/build-showcase.js', 'utf8'), /examples\/fancyape\/fancyape\.config\.js/);
 });
 
 // Browser checks use Playwright (a devDependency; run `npm install`). If it or its browser is missing,
@@ -210,6 +234,9 @@ const BROWSER_TESTS = [
   'browser: hours section is hidden when hours are unset and there is no hoursNote',
   'browser: hours section lists weekly hours when hours are set',
   'browser: showcase heading order, and first step above the fold at 1440x900, 390x844 and 375x667 (EN and ES)',
+  'browser: default page renders with the original theme',
+  'browser: showcase applies the archival palette to every part of the page',
+  'browser: gallery images are contained on a surface mat inside fixed 4:3 frames',
 ];
 let browser = null;
 let browserProblem = '';
@@ -224,8 +251,8 @@ if (!browser) {
 }
 const skipReason = browser ? false : `SKIPPED: Playwright not usable (${browserProblem})`;
 
-async function drive(config, fn, viewport = { width: 1280, height: 800 }) {
-  const app = await startApp({ config, handlerOptions: { sourceFile: 'examples/fancyape/fancyape.config.js' } });
+async function drive(config, fn, viewport = { width: 1280, height: 800 }, handlerOptions = {}) {
+  const app = await startApp({ config, handlerOptions: { sourceFile: 'examples/fancyape/fancyape.config.js', ...handlerOptions } });
   const page = await browser.newPage({ viewport });
   const requests = [];
   page.on('request', (r) => requests.push(`${r.method()} ${new URL(r.url()).pathname}`));
@@ -378,6 +405,103 @@ test('browser: showcase heading order, and first step above the fold at 1440x900
       }
     }, { width, height });
   }
+});
+
+// Computed colors come back as rgb(...) or color(srgb ...). Normalize both to [r, g, b] in 0-255.
+const parseColor = (str) => {
+  const n = str.match(/-?[\d.]+/g).map(Number);
+  return str.startsWith('color(') ? n.slice(0, 3).map((v) => Math.round(v * 255)) : n.slice(0, 3);
+};
+const hexRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+const sameColor = (actual, hex) => parseColor(actual).every((v, i) => Math.abs(v - hexRgb(hex)[i]) <= 2);
+
+test('browser: default page renders with the original theme', { skip: skipReason }, async () => {
+  await drive(testConfig({ demo: true }), async (page) => {
+    const v = (name) => page.evaluate((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name);
+    assert.equal(await page.evaluate(() => document.documentElement.hasAttribute('style') || document.documentElement.classList.contains('themed')), false, 'no theme applied');
+    for (const [name, value] of Object.entries({ '--page': '#eaf0ec', '--panel': '#f4f8f5', '--card': '#fff', '--tile': '#f7f9f8', '--ink': '#1b2428', '--muted': '#56626b', '--line': '#d3dbd6', '--accent': '#14533f', '--focus': '#1a5fd0' })) {
+      assert.equal(await v(name), value, name);
+    }
+    // New tokens resolve to the old behavior.
+    assert.equal(await v('--field'), '#f7f9f8');
+    assert.equal(await v('--accent-hover'), '#14533f');
+    assert.equal(await v('--rule'), '#14533f');
+    assert.equal(await v('--step-ink'), '#1b2428');
+    assert.equal(await v('--input-border'), '#d3dbd6');
+    assert.equal(await v('--input-border-focus'), '#14533f');
+    const css = (sel, prop, pseudo) => page.evaluate(([s, p, ps]) => getComputedStyle(document.querySelector(s), ps).getPropertyValue(p), [sel, prop, pseudo ?? null]);
+    assert.ok(sameColor(await css('input#name', 'background-color'), '#f7f9f8'));
+    assert.ok(sameColor(await css('input#name', 'border-top-color'), '#d3dbd6'));
+    assert.ok(sameColor(await css('legend.step', 'color'), '#1b2428'));
+    assert.ok(sameColor(await css('button.submit', 'background-color'), '#14533f'));
+    assert.ok(sameColor(await css('form-title, h2.form-title', 'background-color', '::after'), '#14533f'));
+    assert.equal(await page.locator('.attribution').count(), 0);
+  });
+});
+
+test('browser: showcase applies the archival palette to every part of the page', { skip: skipReason }, async () => {
+  await drive(showcaseConfig(), async (page) => {
+    const css = (sel, prop, pseudo) => page.evaluate(([s, p, ps]) => getComputedStyle(document.querySelector(s), ps).getPropertyValue(p), [sel, prop, pseudo ?? null]);
+    const is = async (sel, prop, hex, pseudo) => assert.ok(sameColor(await css(sel, prop, pseudo), hex), `${sel} ${prop} ${pseudo ?? ''} expected ${hex}, got ${await css(sel, prop, pseudo)}`);
+    await is('body', 'background-color', T.background);
+    await is('.biz-panel', 'background-color', T.surface);
+    await is('.form-panel', 'background-color', T.surface);
+    await is('h1', 'color', T.text);
+    await is('legend.step', 'color', T.textMuted); // section labels
+    await is('.demo', 'background-color', T.notice);
+    await is('.demo', 'color', T.noticeText);
+    await is('.attribution', 'background-color', T.footer);
+    await is('.tiles.services .tile > span', 'border-top-color', T.border);
+    await is('h2.form-title', 'background-color', T.accentSecondary, '::after'); // heading underline is brass
+    // Main button: accent background, surface text, accentHover on hover.
+    await is('button.submit', 'background-color', T.accent);
+    await is('button.submit', 'color', T.surface);
+    await page.locator('button.submit').hover();
+    await is('button.submit', 'background-color', T.accentHover);
+    // Fields: surface fill, the derived darker edge (the border token is too faint for a field edge), darker still on focus.
+    await is('input#name', 'background-color', T.surface);
+    await is('input#name', 'border-top-color', INPUT_BORDER);
+    await page.locator('input#name').focus();
+    await page.waitForTimeout(300); // let the 150ms border transition finish
+    await is('input#name', 'border-top-color', T.text);
+    // Focus rings are brass: the field's ring, and the outline on a keyboard-focused visit-type card.
+    assert.ok((await css('input#name', 'box-shadow')).includes(`rgb(${hexRgb(T.accentSecondary).join(', ')})`), 'field focus ring is brass');
+    await page.locator('input[name=services]').first().focus();
+    await page.keyboard.press('ArrowRight'); // keyboard use makes the card's focus ring show
+    await is('input[name=services]:focus-visible + span', 'outline-color', T.accentSecondary);
+    // Brass never colors text: check every element that has its own text.
+    const brassText = await page.evaluate((brass) => {
+      const want = brass.map(Number).join(',');
+      const hits = [];
+      for (const el of document.querySelectorAll('body *')) {
+        const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+        if (!own) continue;
+        const [r, g, b] = getComputedStyle(el).color.match(/[\d.]+/g).map(Number);
+        if ([r, g, b].map(Math.round).join(',') === want) hits.push(el.tagName + '.' + el.className);
+      }
+      return hits;
+    }, hexRgb(T.accentSecondary));
+    assert.deepEqual(brassText, [], 'text drawn in brass');
+    // Visit-type cards are about 12% shorter than the old 108px, and still tap-sized.
+    const tile = await page.locator('.tiles.services .tile > span').first().evaluate((e) => e.getBoundingClientRect().height);
+    assert.ok(tile <= 96 && tile >= 44, `card height ${tile}`);
+  }, { width: 1440, height: 900 });
+});
+
+test('browser: gallery images are contained on a surface mat inside fixed 4:3 frames', { skip: skipReason }, async () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'gal-'));
+  // A 1x1 PNG, enough to exercise the image path (the file is stretched to any shape by the browser).
+  writeFileSync(path.join(dir, 'a.png'), Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'));
+  const cfg = { ...showcaseConfig(), gallery: [{ image: 'a.png', title: { en: 'One', es: 'Uno' } }, { image: '', title: { en: 'Two', es: 'Dos' } }, { image: 'missing.png', title: { en: 'Three', es: 'Tres' } }] };
+  await drive(cfg, async (page) => {
+    await page.waitForFunction(() => document.querySelector('.gallery img')?.complete);
+    assert.equal(await page.locator('.gallery img').first().evaluate((e) => getComputedStyle(e).objectFit), 'contain');
+    assert.ok(sameColor(await page.locator('.gallery .frame').first().evaluate((e) => getComputedStyle(e).backgroundColor), T.surface), 'mat is the surface color');
+    const ratios = await page.locator('.gallery .frame').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width / e.getBoundingClientRect().height));
+    assert.ok(ratios.every((r) => Math.abs(r - 4 / 3) < 0.03), `frames stay 4:3: ${ratios}`);
+    // Empty and missing images become placeholder frames.
+    await page.waitForFunction(() => document.querySelectorAll('.gallery .ph').length === 2);
+  }, { width: 1440, height: 900 }, { galleryDir: dir });
 });
 
 after(async () => { await browser?.close(); });

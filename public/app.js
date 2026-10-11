@@ -55,17 +55,30 @@ function readableInk(hex) {
 }
 function applyTheme(theme) {
   if (!theme) return;
+  document.documentElement.classList.add('themed');
   const set = (k, v) => document.documentElement.style.setProperty(k, v);
-  set('--page', theme.background);
-  set('--panel', theme.surface);
-  set('--card', theme.surface);
+  const has = (k) => Boolean(theme[k]);
+  if (has('background')) set('--page', theme.background);
+  if (has('surface')) { set('--panel', theme.surface); set('--card', theme.surface); set('--field', theme.surface); }
+  if (has('text')) set('--ink', theme.text);
   set('--tile', 'color-mix(in srgb, var(--page) 55%, var(--card))');
-  set('--ink', theme.text);
-  set('--muted', 'color-mix(in srgb, var(--ink) 72%, var(--card))');
-  set('--line', 'color-mix(in srgb, var(--ink) 20%, var(--card))');
-  set('--accent', theme.accent);
-  set('--accent-ink', readableInk(theme.accent));
-  set('--ring', 'color-mix(in srgb, var(--accent) 16%, transparent)');
+  set('--muted', has('textMuted') ? theme.textMuted : 'color-mix(in srgb, var(--ink) 72%, var(--card))');
+  if (has('textMuted')) set('--step-ink', 'var(--muted)'); // section labels such as "01 / WHAT"
+  set('--line', has('border') ? theme.border : 'color-mix(in srgb, var(--ink) 20%, var(--card))');
+  // Fields need a 3:1 edge: a darker mix of border and text; darker still on focus.
+  set('--input-border', 'color-mix(in srgb, var(--line) 45%, var(--ink))');
+  set('--input-border-focus', 'var(--ink)');
+  if (has('accent')) {
+    set('--accent', theme.accent);
+    set('--accent-ink', has('surface') ? theme.surface : readableInk(theme.accent));
+  }
+  if (has('accentHover')) set('--accent-hover', theme.accentHover);
+  // accentSecondary is for non-text only: rules, heading underline, focus rings.
+  if (has('accentSecondary')) { set('--rule', theme.accentSecondary); set('--focus', theme.accentSecondary); set('--field-ring', theme.accentSecondary); }
+  set('--ring', `color-mix(in srgb, ${theme.accentSecondary ?? theme.accent ?? 'var(--accent)'} 22%, transparent)`);
+  if (has('notice')) set('--warn-bg', theme.notice);
+  if (has('noticeText')) set('--warn', theme.noticeText);
+  if (has('footer')) set('--footer', theme.footer);
 }
 
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];

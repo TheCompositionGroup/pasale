@@ -1,6 +1,7 @@
 import { DEFAULT_COPY } from './defaults.js';
 import { toMinutes } from './slots.js';
 import { ICON_NAMES } from '../public/icons.js';
+import { contrastRatio } from './contrast.js';
 
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -33,6 +34,7 @@ function missingKeys(defaults, actual, prefix = '') {
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const IMAGE_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,80}\.(jpe?g|png|webp|avif)$/i;
 const MAX_GALLERY = 3;
+const THEME_TOKENS = ['background', 'surface', 'text', 'textMuted', 'border', 'accent', 'accentHover', 'accentSecondary', 'notice', 'noticeText', 'footer'];
 
 // Optional features. Every one is off when its field is absent.
 function validateOptionalFeatures(c, problems) {
@@ -64,7 +66,15 @@ function validateOptionalFeatures(c, problems) {
   }
 
   if (c.theme !== undefined) {
-    for (const k of ['background', 'surface', 'accent', 'text']) if (!HEX.test(c.theme?.[k] ?? '')) problems.push(`theme.${k} must be a hex color like #1f4d3a`);
+    // Every token is optional; one that is left out keeps the default look.
+    for (const [k, v] of Object.entries(c.theme ?? {})) {
+      if (!THEME_TOKENS.includes(k)) problems.push(`theme.${k} is not a theme token (use: ${THEME_TOKENS.join(', ')})`);
+      else if (!HEX.test(v ?? '')) problems.push(`theme.${k} must be a hex color like #1f4d3a`);
+    }
+    // The main button is drawn in the accent color with surface-colored text.
+    if (HEX.test(c.theme?.accent ?? '') && HEX.test(c.theme?.surface ?? '') && contrastRatio(c.theme.accent, c.theme.surface) < 4.5) {
+      problems.push('theme.accent and theme.surface need a contrast of at least 4.5:1 (button text)');
+    }
   }
   if (c.hoursNote !== undefined) perLang(c.hoursNote, 'hoursNote');
   if (c.attribution !== undefined) perLang(c.attribution, 'attribution');
