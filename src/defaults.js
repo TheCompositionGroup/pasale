@@ -134,7 +134,7 @@ export const DEFAULT_COPY = {
     galleryLabel: 'Galería',
     galleryPlaceholder: 'Imagen',
     galleryBy: 'de',
-    galleryFrom: 'de',
+    galleryFrom: 'de la colección',
     showConfigTitle: 'Cómo está hecha esta página',
     showConfigNote: 'Toda esta página sale del único archivo de abajo. Solo lectura.',
     showConfigLoading: 'Cargando…',

@@ -12,6 +12,9 @@ export function galleryStrip({ el, cfg, c, lang }) {
   const list = el('ul', { class: 'gallery', 'aria-label': title || c.galleryLabel }, cfg.gallery.map((g, i) => {
     const name = g.title[lang];
     const frame = el('span', { class: 'frame' });
+    const item = el('li', {});
+    // Frames share one height; each takes its image's own shape (4:3 when the size is unknown).
+    item.style.setProperty('--r', (g.width && g.height ? g.width / g.height : 4 / 3).toFixed(4));
     const cap = el('span', { class: 'cap', 'aria-hidden': g.image ? 'true' : false }, el('span', { class: 't', text: name }), g.artist ? el('span', { class: 'by', text: g.artist }) : null);
     const placeholder = () => {
       frame.replaceChildren(el('span', { class: 'ph', text: c.galleryPlaceholder }));
@@ -24,7 +27,8 @@ export function galleryStrip({ el, cfg, c, lang }) {
       frame.append(img);
     } else placeholder();
     const inner = [frame, cap];
-    return el('li', {}, g.link ? el('a', { href: g.link, rel: 'noopener', target: '_blank' }, inner) : el('span', { class: 'item' }, inner));
+    item.append(g.link ? el('a', { href: g.link, rel: 'noopener', target: '_blank' }, inner) : el('span', { class: 'item' }, inner));
+    return item;
   }));
   return [title ? el('h2', { class: 'gallery-title', text: title }) : null, list, credit ? el('p', { class: 'gallery-credit', text: credit }) : null];
 }

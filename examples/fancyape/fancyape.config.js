@@ -5,7 +5,7 @@ export default {
   business: {
     name: 'Fancy Ape',
     phone: '', // left empty on purpose
-    address: '', // the booth line is shown through header.location below
+    address: '', // no street address shown on this page
     publicUrl: 'https://pasale-showcase.fancyape.workers.dev/',
   },
 
@@ -34,11 +34,12 @@ export default {
 
   // Optional feature: up to 3 items. Images are local files in ./images (no hotlinking).
   // A missing file shows a placeholder frame. Files are served exactly as uploaded (no resizing).
-  // Real titles replace "Untitled" with a one-line change each. link is optional.
+  // width and height are the image's pixel size: frames share one height and take the image's own shape.
+  // `node scripts/build-showcase.js` checks them against the files. Real titles replace "Untitled" (one line each). link is optional.
   gallery: [
-    { image: 'tmnk-1.jpg', title: { en: 'Untitled', es: 'Sin título' }, artist: 'Scott Andre Patterson', link: '' },
-    { image: 'tmnk-2.jpg', title: { en: 'Untitled', es: 'Sin título' }, artist: 'Scott Andre Patterson', link: '' },
-    { image: 'tmnk-3.jpg', title: { en: 'Untitled', es: 'Sin título' }, artist: 'Scott Andre Patterson', link: '' },
+    { image: 'tmnk-1-web.jpg', width: 641, height: 800, title: { en: 'Untitled', es: 'Sin título' }, artist: 'Scott Andre Patterson', link: '' },
+    { image: 'tmnk-2-web.jpg', width: 552, height: 800, title: { en: 'Untitled', es: 'Sin título' }, artist: 'Scott Andre Patterson', link: '' },
+    { image: 'tmnk-3-web.jpg', width: 628, height: 800, title: { en: 'Untitled', es: 'Sin título' }, artist: 'Scott Andre Patterson', link: '' },
   ],
   // Optional: heading above the strip (desktop), the one-line credit under it (phones), and the collection named in alt text.
   galleryTitle: { en: 'The Me Nobody Knows — Scott Andre Patterson', es: 'The Me Nobody Knows — Scott Andre Patterson' },
@@ -71,11 +72,10 @@ export default {
   attribution: { en: 'Scheduling powered by Pásale.', es: 'Citas con tecnología de Pásale.' },
 
   // Optional feature: header. The headline (copy.title) becomes the page's top heading, with `line`
-  // under it, then `subline`, then `location` as the place line.
+  // under it, then `subline`. (`location` is an optional place line; this page has none.)
   header: {
     line: { en: 'Fancy Ape · Studio & Gallery · Melbourne, FL', es: 'Fancy Ape · Estudio y Galería · Melbourne, FL' },
     subline: { en: 'Produced by The Composition Group', es: 'Producido por The Composition Group' },
-    location: { en: "Retail at America's Antique Mall, Booth 117", es: "Venta en America's Antique Mall, puesto 117" },
   },
 
   // Optional feature: "How this page is built" shows this file, read-only. Requires demo: true.
@@ -105,7 +105,6 @@ export default {
       ticketTitle: 'Visit requested',
       ticketStatus: 'Requested — not confirmed',
       galleryPlaceholder: 'Artwork image',
-      labelAddress: 'Find us',
       credit: '',
     },
     es: {
@@ -120,7 +119,6 @@ export default {
       ticketTitle: 'Visita solicitada',
       ticketStatus: 'Solicitada — sin confirmar',
       galleryPlaceholder: 'Imagen de la obra',
-      labelAddress: 'Dónde estamos',
       credit: '',
     },
   },

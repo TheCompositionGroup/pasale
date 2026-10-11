@@ -2,6 +2,7 @@ import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, mkdtempSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { startApp, startInbox, testConfig } from './helpers.js';
@@ -51,13 +52,14 @@ test('showcase config is valid and turns on every optional feature', async () =>
   assert.equal(cfg.services.find((s) => s.id === 'display').icon, 'frame');
   assert.equal(cfg.header.line.en, 'Fancy Ape · Studio & Gallery · Melbourne, FL');
   assert.equal(cfg.header.subline.en, 'Produced by The Composition Group');
-  assert.equal(cfg.header.location.en, "Retail at America's Antique Mall, Booth 117");
+  assert.equal(cfg.header.location, undefined, 'no booth line');
+  assert.equal(cfg.business.address, '');
   assert.equal(cfg.copy.en.title, 'Art is better in person.');
   assert.equal(cfg.business.phone, '');
   await app.close();
 });
 
-test('showcase content rules: no registered mark, no third-party art, sample hours Tue-Sat 10-17, booth is retail', () => {
+test('showcase content rules: no registered mark, no booth line, sample hours Tue-Sat 10-17', () => {
   const text = readFileSync('examples/fancyape/fancyape.config.js', 'utf8');
   assert.ok(!text.includes('®'));
   assert.ok(!/oeno|sasha|boxdrop|acima/i.test(text));
@@ -65,7 +67,8 @@ test('showcase content rules: no registered mark, no third-party art, sample hou
   assert.deepEqual(showcase.hours, { mon: null, tue: ['10:00', '17:00'], wed: ['10:00', '17:00'], thu: ['10:00', '17:00'], fri: ['10:00', '17:00'], sat: ['10:00', '17:00'], sun: null });
   assert.equal(showcase.business.phone, '');
   assert.ok(showcase.gallery.every((g) => !g.image || !/^https?:/i.test(g.image)));
-  assert.match(readFileSync('examples/fancyape/images/README.md', 'utf8'), /Add 3 artwork files you own\./);
+  assert.ok(!/booth|antique mall|find us|dónde estamos/i.test(text), 'no booth line or its label in the config');
+  assert.match(readFileSync('examples/fancyape/images/README.md', 'utf8'), /^Add 3 artwork files you own or have the artist's permission to use, and credit the artist\./);
 });
 
 test('every new string has an ES version, and ES is not a copy of EN', () => {
@@ -79,7 +82,7 @@ test('every new string has an ES version, and ES is not a copy of EN', () => {
     ...walk(showcase.servicePrompts, 'servicePrompts'), ...walk(showcase.gallery, 'gallery'), ...walk(showcase.header, 'header'),
     ...walk({ hoursNote: showcase.hoursNote, attribution: showcase.attribution }, 'x'), ...walk(showcase.services, 'services'),
   ];
-  assert.ok(pairs.length >= 14);
+  assert.ok(pairs.length >= 13);
   for (const [where, v] of pairs) assert.ok(v.es.trim() && v.es !== v.en, `${where} needs its own Spanish text`);
   for (const k of Object.keys(showcase.copy.en)) assert.ok(k in showcase.copy.es, `copy.es.${k}`);
   for (const k of Object.keys(showcase.copy.es)) assert.ok(k in showcase.copy.en, `copy.en.${k}`);
@@ -318,7 +321,8 @@ test('browser: showcase renders each feature', { skip: skipReason }, async () =>
     assert.match(text, /Fancy Ape · Studio & Gallery · Melbourne, FL/);
     assert.match(text, /Produced by The Composition Group/);
     assert.match(text, /Art is better in person\./);
-    assert.match(text, /Retail at America's Antique Mall, Booth 117/);
+    assert.ok(!/Booth|Antique Mall|Find us/.test(text), 'no booth line');
+    assert.equal(await page.locator('.info').count(), 0, 'an empty section is not rendered');
     assert.ok(text.includes('Sample hours for this demo — not real availability.'));
     assert.match(text, /Scheduling powered by Pásale\./);
     assert.match(text, /Demo experience — no requests are sent or saved\./);
@@ -426,9 +430,10 @@ test('browser: showcase heading order, and first step above the fold at 1440x900
         assert.deepEqual(order, ['H1.biz-name', 'P.kicker', 'P.subline']);
         assert.equal(await page.locator('.kicker').textContent(), showcase.header.line[lang]);
         assert.equal(await page.locator('.subline').textContent(), showcase.header.subline[lang]);
-        // Gallery frames share one aspect ratio.
-        const ratios = await page.locator('.gallery .frame').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width / e.getBoundingClientRect().height));
-        assert.ok(Math.max(...ratios) - Math.min(...ratios) < 0.05, `${where}: frame ratios ${ratios}`);
+        // Gallery frames share one height; on phones it stays 93px (84px on short screens) so the fold does not move.
+        const heights = await page.locator('.gallery .frame').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+        assert.ok(Math.max(...heights) - Math.min(...heights) < 1, `${where}: frame heights ${heights}`);
+        if (width <= 600) assert.ok(Math.abs(heights[0] - (height <= 700 ? 84 : 93)) < 1, `${where}: phone frame height ${heights[0]}`);
         // The visit-type tiles (the first step) are fully visible above the limit, and the page does not scroll sideways.
         const bottom = await page.evaluate(() => document.querySelector('.tiles.services').getBoundingClientRect().bottom);
         assert.ok(bottom <= limit, `${where}: first tiles end at ${Math.round(bottom)}px, limit ${limit}px`);
@@ -535,7 +540,7 @@ test('browser: gallery images are contained on a surface mat inside fixed 4:3 fr
     assert.equal(await page.locator('.gallery img').first().evaluate((e) => getComputedStyle(e).objectFit), 'contain');
     assert.ok(sameColor(await page.locator('.gallery .frame').first().evaluate((e) => getComputedStyle(e).backgroundColor), T.surface), 'mat is the surface color');
     const ratios = await page.locator('.gallery .frame').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width / e.getBoundingClientRect().height));
-    assert.ok(ratios.every((r) => Math.abs(r - 4 / 3) < 0.03), `frames stay 4:3: ${ratios}`);
+    assert.ok(ratios.every((r) => Math.abs(r - 4 / 3) < 0.03), `frames without a configured size fall back to 4:3: ${ratios}`);
     // Empty and missing images become placeholder frames.
     await page.waitForFunction(() => document.querySelectorAll('.gallery .ph').length === 2);
   }, { width: 1440, height: 900 }, { galleryDir: dir });
@@ -617,7 +622,9 @@ test('layout is a separate option: it validates, and a theme never turns it on',
 });
 
 test('showcase gallery: three TMNK items, the artist on each, one-line title changes', () => {
-  assert.deepEqual(showcase.gallery.map((g) => g.image), ['tmnk-1.jpg', 'tmnk-2.jpg', 'tmnk-3.jpg']);
+  assert.deepEqual(showcase.gallery.map((g) => g.image), ['tmnk-1-web.jpg', 'tmnk-2-web.jpg', 'tmnk-3-web.jpg']);
+  assert.deepEqual(showcase.gallery.map((g) => [g.width, g.height]), [[641, 800], [552, 800], [628, 800]]);
+  assert.ok(!existsSync(`${IMAGES_DIR}/tmnk-1.jpg`) && !existsSync(`${IMAGES_DIR}/tmnk-2.jpg`) && !existsSync(`${IMAGES_DIR}/tmnk-3.jpg`), 'the large originals are removed');
   for (const g of showcase.gallery) {
     assert.equal(g.artist, 'Scott Andre Patterson');
     assert.equal(g.title.en, 'Untitled');
@@ -629,25 +636,48 @@ test('showcase gallery: three TMNK items, the artist on each, one-line title cha
   const bad = (over, re) => assert.throws(() => resolveConfig({ ...showcaseConfig(), ...over }, {}), (e) => e instanceof ConfigError && re.test(e.message));
   bad({ galleryTitle: { en: 'x' } }, /galleryTitle needs text for "es"/);
   bad({ gallery: [{ image: 'a.jpg', title: { en: 'a', es: 'a' }, artist: '' }] }, /artist must be a short name/);
+  bad({ gallery: [{ image: 'a.jpg', title: { en: 'a', es: 'a' }, width: 100 }] }, /width and height must both/);
+  bad({ gallery: [{ image: 'a.jpg', title: { en: 'a', es: 'a' }, width: 0, height: 10 }] }, /width and height must both/);
+});
+
+// SHA-256 of the web images as uploaded. If you replace an image on purpose, update its hash here.
+const IMAGE_SHA256 = {
+  'tmnk-1-web.jpg': 'cb051be351c2a604d5833669e6f131d40f5ed4f8336e520fc715196c31dd1ad6',
+  'tmnk-2-web.jpg': '0ffc4b520d9f7885d50f0958cf3174ef4aa9541e5cc181f1c134526048e20d9b',
+  'tmnk-3-web.jpg': '908ce88f08752996258afb27e95bc65f51070e201997cd816c7d7ca0399ca9f6',
+};
+const sha = (buf) => createHash('sha256').update(buf).digest('hex');
+
+test('gallery sizes in the config match the image files (read from the file headers)', async () => {
+  const { imageSize } = await import('../scripts/image-size.js');
+  for (const g of showcase.gallery) {
+    assert.deepEqual(imageSize(readFileSync(`${IMAGES_DIR}/${g.image}`)), { width: g.width, height: g.height }, g.image);
+  }
+  // The build step refuses a config whose sizes are wrong.
+  assert.match(readFileSync('scripts/build-showcase.js', 'utf8'), /do not match the image files/);
 });
 
 test('gallery images are served and copied exactly as uploaded (byte for byte)', async () => {
   const app = await startApp({ config: showcaseConfig(), handlerOptions: { galleryDir: IMAGES_DIR } });
   try {
-    for (const n of [1, 2, 3]) {
-      const file = readFileSync(`${IMAGES_DIR}/tmnk-${n}.jpg`);
-      const res = await fetch(`${app.base}/gallery/tmnk-${n}.jpg`);
+    for (const [name, hash] of Object.entries(IMAGE_SHA256)) {
+      const file = readFileSync(`${IMAGES_DIR}/${name}`);
+      assert.equal(sha(file), hash, `${name} on disk is the uploaded file`);
+      const res = await fetch(`${app.base}/gallery/${name}`);
       assert.equal(res.headers.get('content-type'), 'image/jpeg');
-      assert.equal(Buffer.compare(Buffer.from(await res.arrayBuffer()), file), 0, `tmnk-${n}.jpg served unchanged`);
+      const served = Buffer.from(await res.arrayBuffer());
+      assert.equal(Buffer.compare(served, file), 0, `${name} served unchanged`);
+      assert.equal(sha(served), hash);
     }
   } finally {
     await app.close();
   }
   // The Cloudflare build step copies the same files without touching them.
   execFileSync('node', ['scripts/build-showcase.js'], { stdio: 'ignore' });
-  for (const n of [1, 2, 3]) {
-    assert.equal(Buffer.compare(readFileSync(`.showcase/public/gallery/tmnk-${n}.jpg`), readFileSync(`${IMAGES_DIR}/tmnk-${n}.jpg`)), 0, `tmnk-${n}.jpg copied unchanged`);
+  for (const [name, hash] of Object.entries(IMAGE_SHA256)) {
+    assert.equal(sha(readFileSync(`.showcase/public/gallery/${name}`)), hash, `${name} copied unchanged`);
   }
+  assert.deepEqual(readdirSync('.showcase/public/gallery').sort(), Object.keys(IMAGE_SHA256));
 });
 
 test('browser: the artist credit is visible at 1440x900, 390x844 and 375x667 (EN and ES)', { skip: skipReason }, async () => {
@@ -692,15 +722,28 @@ test('browser: TMNK images: alt text, loading and framing', { skip: skipReason }
     assert.deepEqual(await imgs.evaluateAll((els) => els.map((e) => e.getAttribute('alt'))), Array(3).fill('Untitled, by Scott Andre Patterson, from The Me Nobody Knows (TMNK).'));
     assert.deepEqual(await imgs.evaluateAll((els) => els.map((e) => e.getAttribute('loading'))), ['eager', 'lazy', 'lazy']);
     assert.deepEqual(await imgs.evaluateAll((els) => els.map((e) => getComputedStyle(e).objectFit)), Array(3).fill('contain'));
-    const ratios = await page.locator('.gallery .frame').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width / e.getBoundingClientRect().height));
-    assert.ok(ratios.every((r) => Math.abs(r - 4 / 3) < 0.03), `frames stay 4:3: ${ratios}`);
-    // Portrait art keeps its own proportions inside the landscape frame: the picture box is not stretched to the frame.
-    const shown = await imgs.evaluateAll((els) => els.map((e) => { const w = e.naturalWidth / e.naturalHeight; const box = e.getBoundingClientRect(); return { natural: w, box: box.width / box.height }; }));
-    assert.ok(shown.every((s) => s.natural < 1 && s.box > 1), JSON.stringify(shown));
+    // Frames follow each image's own shape: one shared height, width = height x aspect ratio, image fills the frame.
+    const frames = await page.locator('.gallery .frame').evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); const i = e.querySelector('img'); const ib = i.getBoundingClientRect(); return { x: b.x, w: b.width, h: b.height, natural: i.naturalWidth / i.naturalHeight, imgW: ib.width, imgH: ib.height }; }));
+    assert.ok(Math.max(...frames.map((f) => f.h)) - Math.min(...frames.map((f) => f.h)) < 1, `one shared height: ${frames.map((f) => f.h)}`);
+    assert.ok(frames.every((f) => f.w < f.h), 'portrait art gets portrait frames, not landscape ones');
+    for (const f of frames) {
+      assert.ok(Math.abs(f.w / f.h - f.natural) / f.natural < 0.01, `frame ${f.w}x${f.h} follows the image ratio ${f.natural}`);
+      // No letterboxing and no cropping: the picture box fills the frame (less its 1px border) and has the image's own ratio.
+      assert.ok(f.imgW >= f.w - 2.5 && f.imgH >= f.h - 2.5, `image ${f.imgW}x${f.imgH} fills frame ${f.w}x${f.h}`);
+      assert.ok(Math.abs(f.imgW / f.imgH - f.natural) / f.natural < 0.02, 'the picture is not stretched');
+    }
+    assert.equal(new Set(frames.map((f) => Math.round(f.w))).size, 3, 'three different widths, one height');
+    // One row, left-aligned, in config order.
+    const li = await page.locator('.gallery li').evaluateAll((els) => els.map((e) => { const b = e.getBoundingClientRect(); return { x: b.x, y: Math.round(b.y) }; }));
+    assert.equal(new Set(li.map((b) => b.y)).size, 1, 'one row');
+    assert.ok(li[0].x < li[1].x && li[1].x < li[2].x);
+    assert.ok(li[0].x - (await page.locator('.gallery').evaluate((e) => e.getBoundingClientRect().x)) < 1, 'left-aligned');
+    // Titles sit under their frames.
+    assert.ok(await page.locator('.gallery li').evaluateAll((els) => els.every((e) => e.querySelector('.cap .t').getBoundingClientRect().y >= e.querySelector('.frame').getBoundingClientRect().bottom)));
     // Captions repeat what alt says, so they are hidden from screen readers while an image is showing.
     assert.deepEqual(await page.locator('.gallery .cap').evaluateAll((els) => els.map((e) => e.getAttribute('aria-hidden'))), ['true', 'true', 'true']);
     await page.locator('.langs button[lang=es]').click();
-    assert.deepEqual(await page.locator('.gallery img').evaluateAll((els) => els.map((e) => e.getAttribute('alt'))), Array(3).fill('Sin título, de Scott Andre Patterson, de The Me Nobody Knows (TMNK).'));
+    assert.deepEqual(await page.locator('.gallery img').evaluateAll((els) => els.map((e) => e.getAttribute('alt'))), Array(3).fill('Sin título, de Scott Andre Patterson, de la colección The Me Nobody Knows (TMNK).'));
     assert.equal(await page.locator('.gallery').getAttribute('aria-label'), 'The Me Nobody Knows — Scott Andre Patterson');
   }, { width: 1440, height: 900 });
 });
