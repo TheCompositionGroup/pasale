@@ -10,8 +10,8 @@ export default {
   },
 
   timezone: 'America/New_York',
-  // Hours left empty (every day closed). With hoursNote set, the demo lets visitors request a visit without picking a time.
-  hours: { mon: null, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null },
+  // Sample hours so the day and time picker shows. They are not real availability (see hoursNote).
+  hours: { mon: null, tue: ['10:00', '17:00'], wed: ['10:00', '17:00'], thu: ['10:00', '17:00'], fri: ['10:00', '17:00'], sat: ['10:00', '17:00'], sun: null },
   slotMinutes: 60,
   daysAhead: 14,
   minNoticeHours: 2,
@@ -20,7 +20,7 @@ export default {
   // Visit types. serviceSelect: 'single' makes them a pick-one choice.
   services: [
     { id: 'view', icon: 'store', label: { en: 'View artwork', es: 'Ver obras' } },
-    { id: 'display', icon: 'box', label: { en: 'Art display inquiry', es: 'Consulta de exhibición' } },
+    { id: 'display', icon: 'frame', label: { en: 'Art display inquiry', es: 'Consulta de exhibición' } },
     { id: 'consult', icon: 'chat', label: { en: 'Project consultation', es: 'Consulta de proyecto' } },
   ],
   serviceSelect: 'single',
@@ -56,8 +56,11 @@ export default {
     footer: '#EAE4D8',
   },
 
-  // Optional feature: shown while hours are unset.
-  hoursNote: { en: 'Hours: set by business', es: 'Horario: lo define el negocio' },
+  // Optional feature: a note about the hours, shown directly above the day picker (and instead of the hours when they are unset).
+  hoursNote: { en: 'Sample hours for this demo — not real availability.', es: 'Horario de ejemplo para esta demo — no es disponibilidad real.' },
+
+  // Optional feature: 'compact' gives a quieter header and smaller visit-type cards. Theme changes colors only.
+  layout: 'compact',
 
   // Optional feature: footer line.
   attribution: { en: 'Scheduling powered by Pásale.', es: 'Citas con tecnología de Pásale.' },

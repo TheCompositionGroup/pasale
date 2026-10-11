@@ -48,14 +48,13 @@ function tile(type, name, value, checked, content, onchange) {
     el('span', {}, content));
 }
 
-// Optional theme: four tokens from the config become CSS variables. No theme, no change.
+// Optional theme tokens become CSS variables; no theme, no change.
 function readableInk(hex) {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
   return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? '#111111' : '#ffffff';
 }
 function applyTheme(theme) {
   if (!theme) return;
-  document.documentElement.classList.add('themed');
   const set = (k, v) => document.documentElement.style.setProperty(k, v);
   const has = (k) => Boolean(theme[k]);
   if (has('background')) set('--page', theme.background);
@@ -68,6 +67,7 @@ function applyTheme(theme) {
   // Fields need a 3:1 edge: a darker mix of border and text; darker still on focus.
   set('--input-border', 'color-mix(in srgb, var(--line) 45%, var(--ink))');
   set('--input-border-focus', 'var(--ink)');
+  set('--card-border', 'var(--input-border)'); // cards need a visible edge too
   if (has('accent')) {
     set('--accent', theme.accent);
     set('--accent-ink', has('surface') ? theme.surface : readableInk(theme.accent));
@@ -101,7 +101,7 @@ function hoursRows() {
     el('dd', { text: g.h ? `${fmtTime(g.h[0])} – ${fmtTime(g.h[1])}` : c.closed })));
 }
 
-// Optional gallery strip: local images only. A missing or broken image becomes a neutral placeholder frame.
+// Optional gallery: a missing or broken image becomes a placeholder frame.
 function galleryStrip() {
   if (!cfg.gallery?.length) return null;
   const c = t();
@@ -119,13 +119,13 @@ function galleryStrip() {
   }));
 }
 
-// Opening hours block. Hours set: weekly rows. Hours unset: the hoursNote text if configured, otherwise nothing at all.
+// Hours: weekly rows; if unset, the hoursNote, or nothing.
 function hoursBlock() {
   const c = t();
   if (cfg.hoursUnset) {
     return cfg.hoursNote ? el('div', { class: 'info hours-note' }, el('span', { class: 'label', text: c.labelHours }), el('p', { text: cfg.hoursNote[lang] })) : null;
   }
-  const hours = el('details', { class: 'hours' }, el('summary', { text: c.labelHours }), el('dl', {}, hoursRows()));
+  const hours = el('details', { class: 'hours' }, el('summary', { text: c.labelHours }), el('dl', {}, hoursRows()), cfg.hoursNote ? el('p', { class: 'note', text: cfg.hoursNote[lang] }) : null);
   if (matchMedia('(min-width: 960px)').matches) hours.open = true;
   return hours;
 }
@@ -237,7 +237,7 @@ function timesFieldset() {
     err ? el('p', { class: 'err', id: 'time-err', text: err }) : null);
 }
 
-// With servicePrompts on, the message prompt follows the selected visit type.
+// servicePrompts: the message prompt follows the selected visit type.
 function noteLabelText() {
   const c = t();
   const picked = cfg.services.find((s) => state.services.has(s.id) && cfg.servicePrompts?.[s.id]);
@@ -320,6 +320,7 @@ function renderForm(focus) {
         ? el('p', { class: 'note', text: c.noTimes })
         : [
             el('p', { class: 'note', text: c.preferredNote }),
+            cfg.hoursNote ? el('p', { class: 'note hours-sample', text: cfg.hoursNote[lang] }) : null,
             el('fieldset', { class: dateErr ? 'bad' : '', 'aria-describedby': dateErr ? 'date-err' : false },
               el('legend', { text: c.dateLabel }),
               el('div', { class: 'tiles dates' }, grid.cells),
@@ -379,7 +380,7 @@ function renderTicket() {
     el('button', { class: 'again', type: 'button', text: c.again, onclick: () => { const keep = state; state = newState(); state.name = keep.name; state.phone = keep.phone; renderForm('.form-title'); } })), '#ref', 'is-ticket');
 }
 
-// Same alphabet as src/reference.js (no 0/O or 1/I/L).
+// Same alphabet as src/reference.js.
 function demoReference() {
   const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   let out = '';
@@ -403,7 +404,7 @@ async function submit(e) {
   if (Object.keys(errors).length) return renderForm('#summary');
 
   const snapshot = { name: state.name.trim(), phone: state.phone.trim(), services: [...state.services], date: state.date, time: state.time, note: state.note.trim(), consent: state.consent };
-  // Demo mode: a local confirmation only. No fetch, no endpoint, nothing leaves the browser.
+  // Demo mode: local confirmation only, no network.
   if (cfg.demo) {
     state.ticket = { ...snapshot, ref: demoReference() };
     return renderTicket();
@@ -444,6 +445,7 @@ try {
   const wanted = params.get('lang') || navigator.language?.slice(0, 2);
   lang = cfg.languages.includes(wanted) ? wanted : cfg.defaultLanguage;
   applyTheme(cfg.theme);
+  if (cfg.layout === 'compact') document.documentElement.classList.add('compact');
   state = newState();
   renderForm();
 } catch {

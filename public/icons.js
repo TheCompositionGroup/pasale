@@ -1,4 +1,4 @@
-// Eight original line icons for the service tiles. 24x24 grid, one stroke weight,
+// Nine original line icons for the service tiles. 24x24 grid, one stroke weight,
 // round caps and joins. Each icon is a list of SVG path strings. A business picks one
 // by name in config (icon: 'store'). Drawn for Pásale; no third-party artwork.
 export const ICONS = {
@@ -10,5 +10,6 @@ export const ICONS = {
   heart: ['M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20z'],
   document: ['M6 3h8l4 4v14H6z', 'M14 3v4h4', 'M9 12h6', 'M9 16h6'],
   car: ['M4 15v-3.5L6.2 7h11.6L20 11.5V15z', 'M4 11.5h16', 'M10 16.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0z', 'M18 16.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0z'],
+  frame: ['M4 8h16v13H4z', 'M7 11h10v7H7z', 'M8 8l4-5 4 5'],
 };
 export const ICON_NAMES = Object.keys(ICONS);

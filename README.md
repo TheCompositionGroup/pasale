@@ -32,8 +32,9 @@ Deploy it as its own Worker: `npx wrangler deploy --env showcase` (the default d
 | Message prompt changes with the selected visit type (EN/ES) | `servicePrompts: { <service id>: { en, es } }` |
 | Pick one visit type instead of several | `serviceSelect: 'single'` |
 | Gallery strip, up to 3 items: image, title, optional link. Images are local files in the example's `images/` folder (no hotlinking); a missing image shows a placeholder frame | `gallery: [{ image, title: { en, es }, link }]` |
-| Colors | `theme: { background, surface, text, textMuted, border, accent, accentHover, accentSecondary, notice, noticeText, footer }` (hex colors, all optional, applied as CSS variables; a theme also switches on a quieter header and smaller visit-type cards). `accentSecondary` is for non-text only (rules, heading underline, focus rings). The showcase theme is checked for WCAG AA contrast |
-| Text shown when opening hours are unset | `hoursNote: { en, es }` |
+| Colors | `theme: { background, surface, text, textMuted, border, accent, accentHover, accentSecondary, notice, noticeText, footer }` (hex colors, all optional, applied as CSS variables). `accentSecondary` is for non-text only (rules, heading underline, focus rings). The showcase theme is checked for WCAG AA contrast |
+| A note about the hours, shown directly above the day picker (and instead of the hours when they are unset; a demo with unset hours then lets visitors request a visit without picking a time) | `hoursNote: { en, es }` |
+| Quieter header and smaller visit-type cards (colors are not affected; a theme never changes layout) | `layout: 'compact'` |
 | Footer line, e.g. "Scheduling powered by Pásale." | `attribution: { en, es }` |
 | Header line, sub-line and place line in place of the plain name and address | `header: { line, subline, location }` (each `{ en, es }`) |
 | "How this page is built" toggle showing the config file, read-only | `showConfig: true` (requires `demo: true`) |

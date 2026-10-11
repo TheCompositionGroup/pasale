@@ -9,14 +9,14 @@ import { DEFAULT_COPY } from '../src/defaults.js';
 import base from '../config/pasale.config.js';
 import showcase from '../examples/fancyape/fancyape.config.js';
 
-const OPTIONAL_OFF = { servicePrompts: null, gallery: null, theme: null, hoursNote: null, attribution: null, header: null, showConfig: false, timeOptional: false, serviceSelect: 'multiple' };
+const OPTIONAL_KEYS = ['servicePrompts', 'gallery', 'theme', 'layout', 'hoursNote', 'attribution', 'header', 'showConfig', 'timeOptional', 'serviceSelect', 'hoursUnset'];
 const showcaseConfig = () => ({ ...showcase, business: { ...showcase.business } });
 const EXISTING_FANCYAPE_URLS = /pasale\.fancyape\.workers\.dev|www\.fancyape\.com\/projects/g;
 
 test('default config: every optional feature is off', async () => {
   const app = await startApp({});
   const cfg = await app.config();
-  for (const [k, v] of Object.entries(OPTIONAL_OFF)) assert.deepEqual(cfg[k], v, k);
+  for (const k of OPTIONAL_KEYS) assert.equal(cfg[k], undefined, `${k} is off`);
   await app.close();
 });
 
@@ -43,7 +43,11 @@ test('showcase config is valid and turns on every optional feature', async () =>
   assert.ok(cfg.hoursNote.en && cfg.hoursNote.es);
   assert.ok(cfg.attribution.en.includes('Pásale'));
   assert.equal(cfg.showConfig, true);
-  assert.equal(cfg.timeOptional, true);
+  assert.equal(cfg.layout, 'compact');
+  assert.equal(cfg.timeOptional, undefined, 'sample hours are set, so the picker shows');
+  assert.equal(cfg.hoursNote.en, 'Sample hours for this demo — not real availability.');
+  assert.equal(cfg.hoursNote.es, 'Horario de ejemplo para esta demo — no es disponibilidad real.');
+  assert.equal(cfg.services.find((s) => s.id === 'display').icon, 'frame');
   assert.equal(cfg.header.line.en, 'Fancy Ape · Studio & Gallery · Melbourne, FL');
   assert.equal(cfg.header.subline.en, 'Produced by The Composition Group');
   assert.equal(cfg.header.location.en, "Retail at America's Antique Mall, Booth 117");
@@ -52,12 +56,12 @@ test('showcase config is valid and turns on every optional feature', async () =>
   await app.close();
 });
 
-test('showcase content rules: no registered mark, no third-party art, hours empty, booth is retail', () => {
+test('showcase content rules: no registered mark, no third-party art, sample hours Tue-Sat 10-17, booth is retail', () => {
   const text = readFileSync('examples/fancyape/fancyape.config.js', 'utf8');
   assert.ok(!text.includes('®'));
   assert.ok(!/oeno|sasha|boxdrop|acima/i.test(text));
   assert.ok(!/private|appointment/i.test(JSON.stringify(showcase.header)));
-  assert.ok(Object.values(showcase.hours).every((h) => h === null));
+  assert.deepEqual(showcase.hours, { mon: null, tue: ['10:00', '17:00'], wed: ['10:00', '17:00'], thu: ['10:00', '17:00'], fri: ['10:00', '17:00'], sat: ['10:00', '17:00'], sun: null });
   assert.equal(showcase.business.phone, '');
   assert.ok(showcase.gallery.every((g) => !g.image || !/^https?:/i.test(g.image)));
   assert.match(readFileSync('examples/fancyape/images/README.md', 'utf8'), /Add 3 artwork files you own\./);
@@ -149,6 +153,25 @@ test('wrangler: showcase env serves the Fancy Ape example in DEMO_MODE; default 
   assert.match(JSON.parse(readFileSync('package.json', 'utf8')).scripts.showcase, /showcase\.js/);
 });
 
+// Page-size budgets. The default page keeps the 60 KB budget (tests/static.test.js). The showcase has its own:
+// its size when the budget was set, plus 8 KB. Same six files: /, app.js, styles.css, /api/config, /sign, sign.css.
+const SHOWCASE_BASELINE_BYTES = 66000;
+const SHOWCASE_BUDGET_BYTES = SHOWCASE_BASELINE_BYTES + 8 * 1024;
+
+test('showcase page download stays inside its own budget (baseline + 8 KB)', async (t) => {
+  const app = await startApp({ config: showcaseConfig() });
+  try {
+    let total = 0;
+    for (const p of ['/', '/app.js', '/styles.css', '/api/config', '/sign', '/sign.css']) {
+      total += (await (await fetch(`${app.base}${p}`)).arrayBuffer()).byteLength;
+    }
+    t.diagnostic(`showcase ${total} bytes, budget ${SHOWCASE_BUDGET_BYTES}`);
+    assert.ok(total < SHOWCASE_BUDGET_BYTES, `showcase is ${total} bytes, budget ${SHOWCASE_BUDGET_BYTES}`);
+  } finally {
+    await app.close();
+  }
+});
+
 // WCAG contrast, implemented here independently of src/contrast.js.
 const lum = (hex) => {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
@@ -179,6 +202,7 @@ test('showcase theme: every text/background pair is WCAG AA (4.5:1 text, 3:1 for
     ['accentSecondary (brass) on surface', T.accentSecondary, T.surface], ['accentSecondary (brass) on background', T.accentSecondary, T.background],
     ['input border on surface', INPUT_BORDER, T.surface], ['input border on background', INPUT_BORDER, T.background],
     ['accent on surface (selected card edge, icons)', T.accent, T.surface], ['accent on tile (icons)', T.accent, TILE],
+    ['card edge on background', INPUT_BORDER, T.background], ['card edge on tile', INPUT_BORDER, TILE], ['card edge on surface', INPUT_BORDER, T.surface],
   ];
   const lines = [];
   for (const [name, fg, bg] of text) { const r = ratio(fg, bg); lines.push(`${name}: ${r.toFixed(2)}:1`); assert.ok(r >= 4.5, `${name} is ${r.toFixed(2)}:1, needs 4.5:1`); }
@@ -218,9 +242,11 @@ test('default theme: stylesheet defaults and default config are unchanged', asyn
     assert.ok(root.includes(original), `default ${original}`);
   }
   const app = await startApp({});
-  const cfg = await app.config();
-  assert.equal(cfg.theme, null);
-  await app.close();
+  try {
+    assert.equal((await app.config()).theme, undefined);
+  } finally {
+    await app.close();
+  }
 });
 
 // Browser checks use Playwright (a devDependency; run `npm install`). If it or its browser is missing,
@@ -237,6 +263,9 @@ const BROWSER_TESTS = [
   'browser: default page renders with the original theme',
   'browser: showcase applies the archival palette to every part of the page',
   'browser: gallery images are contained on a surface mat inside fixed 4:3 frames',
+  'browser: sample-hours note sits directly above the day picker, Tue-Sat open',
+  'browser: layout and theme are independent',
+  'browser: the frame icon draws inside the 24x24 grid for Art display inquiry',
 ];
 let browser = null;
 let browserProblem = '';
@@ -283,7 +312,7 @@ test('browser: showcase renders each feature', { skip: skipReason }, async () =>
     assert.match(text, /Produced by The Composition Group/);
     assert.match(text, /Art is better in person\./);
     assert.match(text, /Retail at America's Antique Mall, Booth 117/);
-    assert.match(text, /Hours: set by business/);
+    assert.ok(text.includes('Sample hours for this demo — not real availability.'));
     assert.match(text, /Scheduling powered by Pásale\./);
     assert.match(text, /Demo experience — no requests are sent or saved\./);
     assert.match(text, /Your details are used only to respond to your request\./);
@@ -307,12 +336,12 @@ test('browser: showcase renders each feature', { skip: skipReason }, async () =>
     await page.locator('.langs button[lang=es]').click();
     text = await body();
     assert.match(text, /El arte es mejor en persona\./);
-    assert.match(text, /Horario: lo define el negocio/);
+    assert.ok(text.includes('Horario de ejemplo para esta demo — no es disponibilidad real.'));
     assert.match(text, /Citas con tecnología de Pásale\./);
     assert.match(text, /Producido por The Composition Group/);
     assert.match(text, /Experiencia de demostración/);
     assert.equal(await page.locator('.gallery .ph', { hasText: 'Imagen de la obra' }).count(), 3);
-    assert.ok(!/Pick the kind|Demo experience|Hours: set|Scheduling powered|Request a visit|Any pieces/.test(text), 'no English left after toggling to ES');
+    assert.ok(!/Pick the kind|Demo experience|Sample hours|Scheduling powered|Request a visit|Any pieces/.test(text), 'no English left after toggling to ES');
   });
 });
 
@@ -321,10 +350,8 @@ for (const name of ['default', 'showcase']) {
     await drive(name === 'default' ? testConfig({ demo: true }) : showcaseConfig(), async (page, requests) => {
       const before = requests.length;
       await page.locator('input[name=services]').first().check({ force: true });
-      if (name === 'default') {
-        await page.locator('input[name=date]:not([disabled])').first().check({ force: true });
-        await page.locator('input[name=time]').first().check({ force: true });
-      }
+      await page.locator('input[name=date]:not([disabled])').first().check({ force: true });
+      await page.locator('input[name=time]').first().check({ force: true });
       await page.fill('#name', 'Ana');
       await page.fill('#phone', '555 123 4567');
       await page.locator('button.submit').click();
@@ -345,12 +372,12 @@ for (const name of ['default', 'showcase']) {
 const noHours = { mon: null, tue: null, wed: null, thu: null, fri: null, sat: null, sun: null };
 
 test('browser: hours section shows the hoursNote when hours are unset', { skip: skipReason }, async () => {
-  await drive(showcaseConfig(), async (page) => {
+  await drive({ ...showcaseConfig(), hours: noHours }, async (page) => {
     assert.equal(await page.locator('details.hours').count(), 0, 'no collapsed, empty-looking Hours control');
-    assert.equal(await page.locator('.hours-note p').textContent(), 'Hours: set by business');
+    assert.equal(await page.locator('.hours-note p').textContent(), 'Sample hours for this demo — not real availability.');
     assert.equal(await page.locator('.hours-note .label').textContent(), 'Hours');
     await page.locator('.langs button[lang=es]').click();
-    assert.equal(await page.locator('.hours-note p').textContent(), 'Horario: lo define el negocio');
+    assert.equal(await page.locator('.hours-note p').textContent(), 'Horario de ejemplo para esta demo — no es disponibilidad real.');
     assert.equal(await page.locator('.hours-note .label').textContent(), 'Horario');
   });
 });
@@ -400,7 +427,7 @@ test('browser: showcase heading order, and first step above the fold at 1440x900
         // On phones the header text is 16px or more; tap targets are 44px or more everywhere.
         const sizes = await page.locator('.kicker, .subline, .intro:visible').evaluateAll((els) => els.map((e) => parseFloat(getComputedStyle(e).fontSize)));
         if (width <= 600) assert.ok(sizes.every((n) => n >= 16), `${where}: header text sizes ${sizes}`);
-        const targets = await page.locator('.tiles.services .tile > span, .langs button').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+        const targets = await page.locator(`.tiles.services .tile > span, .langs button${width <= 600 ? ', .hours summary' : ''}`).evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
         assert.ok(targets.every((n) => n >= 44), `${where}: tap target heights ${targets.map(Math.round)}`);
       }
     }, { width, height });
@@ -418,7 +445,7 @@ const sameColor = (actual, hex) => parseColor(actual).every((v, i) => Math.abs(v
 test('browser: default page renders with the original theme', { skip: skipReason }, async () => {
   await drive(testConfig({ demo: true }), async (page) => {
     const v = (name) => page.evaluate((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name);
-    assert.equal(await page.evaluate(() => document.documentElement.hasAttribute('style') || document.documentElement.classList.contains('themed')), false, 'no theme applied');
+    assert.equal(await page.evaluate(() => document.documentElement.hasAttribute('style') || document.documentElement.classList.contains('compact')), false, 'no theme or layout applied');
     for (const [name, value] of Object.entries({ '--page': '#eaf0ec', '--panel': '#f4f8f5', '--card': '#fff', '--tile': '#f7f9f8', '--ink': '#1b2428', '--muted': '#56626b', '--line': '#d3dbd6', '--accent': '#14533f', '--focus': '#1a5fd0' })) {
       assert.equal(await v(name), value, name);
     }
@@ -451,7 +478,8 @@ test('browser: showcase applies the archival palette to every part of the page',
     await is('.demo', 'background-color', T.notice);
     await is('.demo', 'color', T.noticeText);
     await is('.attribution', 'background-color', T.footer);
-    await is('.tiles.services .tile > span', 'border-top-color', T.border);
+    await is('.tiles.services .tile > span', 'border-top-color', INPUT_BORDER); // card edges are >= 3:1, like fields
+    await is('.hours-sample', 'color', T.textMuted);
     await is('h2.form-title', 'background-color', T.accentSecondary, '::after'); // heading underline is brass
     // Main button: accent background, surface text, accentHover on hover.
     await is('button.submit', 'background-color', T.accent);
@@ -502,6 +530,81 @@ test('browser: gallery images are contained on a surface mat inside fixed 4:3 fr
     // Empty and missing images become placeholder frames.
     await page.waitForFunction(() => document.querySelectorAll('.gallery .ph').length === 2);
   }, { width: 1440, height: 900 }, { galleryDir: dir });
+});
+
+test('browser: sample-hours note sits directly above the day picker, Tue-Sat open', { skip: skipReason }, async () => {
+  await drive(showcaseConfig(), async (page) => {
+    const note = page.locator('.hours-sample');
+    assert.equal(await note.textContent(), 'Sample hours for this demo — not real availability.');
+    // The element right after the note is the day picker.
+    assert.equal(await note.evaluate((e) => e.nextElementSibling.querySelector('.tiles.dates') !== null), true);
+    // Open days are Tue-Sat; Sun and Mon are closed. (The test clock puts today on a Monday.)
+    const weekdays = await page.locator('input[name=date]:not([disabled])').evaluateAll((els) => [...new Set(els.map((e) => new Date(`${e.value}T00:00:00Z`).getUTCDay()))].sort());
+    assert.deepEqual(weekdays, [2, 3, 4, 5, 6]);
+    await page.locator('input[name=date]:not([disabled])').first().check({ force: true });
+    const times = await page.locator('input[name=time]').evaluateAll((els) => els.map((e) => e.value));
+    assert.equal(times[0], '10:00');
+    assert.equal(times.at(-1), '16:00');
+    await page.locator('.langs button[lang=es]').click();
+    assert.equal(await note.textContent(), 'Horario de ejemplo para esta demo — no es disponibilidad real.');
+  });
+});
+
+test('browser: layout and theme are independent', { skip: skipReason }, async () => {
+  const measure = (page) => page.evaluate(() => ({
+    compact: document.documentElement.classList.contains('compact'),
+    card: Math.round(document.querySelector('.tiles.services .tile > span').getBoundingClientRect().height),
+    intro: parseFloat(getComputedStyle(document.querySelector('.intro')).fontSize),
+    page: getComputedStyle(document.documentElement).getPropertyValue('--page').trim(),
+  }));
+  const wide = { width: 1440, height: 900 };
+  let themeOnly; let layoutOnly; let both;
+  await drive({ ...showcaseConfig(), layout: undefined }, async (page) => { themeOnly = await measure(page); }, wide);
+  await drive({ ...showcaseConfig(), theme: undefined }, async (page) => { layoutOnly = await measure(page); }, wide);
+  await drive(showcaseConfig(), async (page) => { both = await measure(page); }, wide);
+  // Theme alone: colors change, layout does not.
+  assert.equal(themeOnly.compact, false);
+  assert.ok(themeOnly.card >= 106, `card ${themeOnly.card}`);
+  assert.equal(themeOnly.intro, 16);
+  assert.equal(themeOnly.page, T.background);
+  // Layout alone: layout changes, colors do not.
+  assert.equal(layoutOnly.compact, true);
+  assert.ok(layoutOnly.card <= 96, `card ${layoutOnly.card}`);
+  assert.equal(layoutOnly.intro, 15);
+  assert.equal(layoutOnly.page, '#eaf0ec');
+  assert.deepEqual([both.compact, both.page], [true, T.background]);
+});
+
+test('browser: the frame icon draws inside the 24x24 grid for Art display inquiry', { skip: skipReason }, async () => {
+  await drive(showcaseConfig(), async (page) => {
+    const svg = page.locator('input[name=services][value=display] + span svg');
+    assert.equal(await svg.getAttribute('viewBox'), '0 0 24 24');
+    assert.equal(await svg.locator('path').count(), 3);
+    const box = await svg.evaluate((e) => { const b = e.getBBox(); return { x: b.x, y: b.y, r: b.x + b.width, b: b.y + b.height }; });
+    assert.ok(box.x >= 0 && box.y >= 0 && box.r <= 24 && box.b <= 24, JSON.stringify(box));
+  });
+});
+
+test('frame icon: same grid and style as the set', async () => {
+  const { ICONS, ICON_NAMES } = await import('../public/icons.js');
+  assert.ok(ICON_NAMES.includes('frame'));
+  assert.equal(ICONS.frame.length, 3, 'frame, mat line, hanging wire');
+  assert.ok(ICONS.frame.every((d) => /^M[\d\sMLHVCSQTAZa-z.,-]+$/.test(d)));
+  assert.equal(showcase.services.find((s) => s.id === 'display').icon, 'frame');
+  assert.doesNotThrow(() => resolveConfig(showcaseConfig(), {}));
+});
+
+test('layout is a separate option: it validates, and a theme never turns it on', () => {
+  const ok = (over) => resolveConfig(testConfig(over), { PASALE_WEBHOOK_URL: 'http://x.test/' });
+  assert.doesNotThrow(() => ok({ layout: 'compact' }));
+  assert.doesNotThrow(() => ok({ layout: 'default' }));
+  assert.throws(() => ok({ layout: 'tiny' }), /layout must be/);
+  const css = readFileSync('public/styles.css', 'utf8');
+  const js = readFileSync('public/app.js', 'utf8');
+  assert.ok(!/themed/.test(css + js), 'no layout hook is tied to the theme');
+  assert.ok(/classList\.add\('compact'\)/.test(js) && /cfg\.layout === 'compact'/.test(js));
+  const theme = js.slice(js.indexOf('function applyTheme'), js.indexOf('function applyTheme') + 2500);
+  assert.ok(!/classList/.test(theme.slice(0, theme.indexOf("const DAY_KEYS") > 0 ? theme.indexOf("const DAY_KEYS") : theme.length)), 'applyTheme touches colors only');
 });
 
 after(async () => { await browser?.close(); });

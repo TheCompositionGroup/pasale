@@ -5,13 +5,14 @@ import { startApp } from './helpers.js';
 import { SECURITY_HEADERS } from '../src/headers.js';
 import base from '../config/pasale.config.js';
 
-test('everything a visitor downloads stays well under 200 KB', async () => {
+test('everything a visitor downloads stays well under 200 KB', async (t) => {
   const app = await startApp({});
   try {
     let total = 0;
     for (const p of ['/', '/app.js', '/styles.css', '/api/config', '/sign', '/sign.css']) {
       total += (await (await fetch(`${app.base}${p}`)).arrayBuffer()).byteLength;
     }
+    t.diagnostic(`default page ${total} bytes, budget ${60 * 1024}`);
     assert.ok(total < 60 * 1024, `total ${total} bytes`);
   } finally {
     await app.close();
@@ -41,9 +42,9 @@ test('styles use transitions only and the UI markup keeps emoji out of the acces
   assert.ok(!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(js), 'no emoji in the interface code');
 });
 
-test('icon set: 6 to 8 original line icons with one stroke weight, named in config', async () => {
+test('icon set: 6 to 9 original line icons with one stroke weight, named in config', async () => {
   const { ICONS, ICON_NAMES } = await import('../public/icons.js');
-  assert.ok(ICON_NAMES.length >= 6 && ICON_NAMES.length <= 8, `${ICON_NAMES.length} icons`);
+  assert.ok(ICON_NAMES.length >= 6 && ICON_NAMES.length <= 9, `${ICON_NAMES.length} icons`);
   for (const [name, paths] of Object.entries(ICONS)) assert.ok(paths.length >= 1 && paths.every((d) => /^M[\d\sMLHVCSQTAZa-z.,-]+$/.test(d)), name);
   const js = readFileSync('public/app.js', 'utf8');
   assert.equal((js.match(/'stroke-width': '1\.5'/g) ?? []).length, 1, 'one stroke weight for every icon');

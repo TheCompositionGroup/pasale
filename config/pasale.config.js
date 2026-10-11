@@ -27,7 +27,7 @@ export default {
   // Single dates ('2026-12-25') or ranges ({ from: '2026-07-01', to: '2026-07-07' })
   blackoutDates: [],
 
-  // icon is optional: store, box, chat, scissors, wrench, heart, document or car.
+  // icon is optional: store, box, chat, scissors, wrench, heart, document, car or frame.
   // Every service needs a label in each language.
   services: [
     { id: 'browse', icon: 'store', label: { en: 'Look around', es: 'Ver el local' } },

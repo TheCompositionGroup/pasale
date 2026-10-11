@@ -16,7 +16,7 @@
 /* Optional theme tokens (applyTheme in app.js); defaults keep today's look. */
 :root {
   --field: var(--tile); --accent-hover: var(--accent); --rule: var(--accent); --step-ink: var(--ink); --footer: transparent;
-  --input-border: var(--line); --input-border-focus: var(--accent); --field-ring: var(--ring);
+  --input-border: var(--line); --input-border-focus: var(--accent); --field-ring: var(--ring); --card-border: var(--line);
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--page); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
@@ -79,7 +79,7 @@ input[type=text]:focus, input[type=tel]:focus, textarea:focus { background: var(
 .tiles.times { grid-template-columns: repeat(3, 1fr); }
 .tile { position: relative; display: block; }
 .tile input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
-.tile > span { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 52px; padding: 10px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--tile); text-align: center; font-weight: 600; transition: border-color .15s, box-shadow .15s, background-color .15s, transform .15s; }
+.tile > span { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 52px; padding: 10px 8px; border: 1px solid var(--card-border); border-radius: var(--radius); background: var(--tile); text-align: center; font-weight: 600; transition: border-color .15s, box-shadow .15s, background-color .15s, transform .15s; }
 .tile:hover > span { background: var(--card); box-shadow: var(--shadow); }
 .tile input:checked + span { background: var(--card); border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent), 0 12px 24px var(--ring); }
 .tile input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 3px; }
@@ -145,7 +145,7 @@ dt { font-size: .875rem; font-weight: 700; color: var(--muted); }
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
-/* Optional features: header, gallery, attribution, config viewer. */
+/* Optional features. */
 .kicker { margin: 8px 0 0; font-size: 1rem; font-weight: 700; line-height: 1.3; }
 .subline { margin: 4px 0 0; font-size: .9rem; color: var(--muted); }
 .gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 18px 0 0; padding: 0; list-style: none; }
@@ -172,7 +172,7 @@ dt { font-size: .875rem; font-weight: 700; color: var(--muted); }
   .form-panel { padding-top: 16px; }
 }
 
-/* Phones: keep the first step above the fold; text stays 16px+, tap targets 44px+. */
+/* Phones: first step above the fold; text 16px+, tap targets 44px+. */
 @media (max-width: 600px) {
   .layout { grid-template-columns: minmax(0, 1fr); }
   .biz-panel { padding: 12px 16px 8px; min-width: 0; }
@@ -187,6 +187,7 @@ dt { font-size: .875rem; font-weight: 700; color: var(--muted); }
   .gallery .cap { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .gallery li { position: relative; }
   .info, .hours { margin-top: 8px; }
+  .hours summary { min-height: 44px; }
   .form-panel { padding: 12px 16px 32px; }
   .demo { margin-bottom: 8px; padding: 6px 12px; }
   form > .form-title { clear: none; padding-top: 8px; font-size: 1.125rem; }
@@ -204,6 +205,8 @@ dt { font-size: .875rem; font-weight: 700; color: var(--muted); }
   .gallery li { flex-basis: 112px; }
   .tiles.services > .tile > span { min-height: 88px; gap: 4px; padding: 8px 6px; }
   .ico { width: 32px; height: 32px; }
+  .info, .hours { margin-top: 4px; }
+  .gallery { padding-bottom: 0; }
   .hours-note { display: flex; align-items: baseline; gap: 8px; }
   .hours-note p { margin: 0; }
   .biz-panel { padding-bottom: 4px; }
@@ -211,19 +214,19 @@ dt { font-size: .875rem; font-weight: 700; color: var(--muted); }
   .demo { margin-bottom: 6px; }
 }
 
-/* html.themed (a theme is configured): quieter header, smaller cards. */
-html.themed .intro { margin: 8px 0 14px; font-size: .9375rem; }
-html.themed .kicker { margin-top: 6px; font-size: .9375rem; }
-html.themed .subline { margin-top: 2px; font-size: .8125rem; }
-html.themed .tiles.services > .tile > span { min-height: 95px; gap: 6px; padding: 8px 8px; }
-html.themed .ico { width: 36px; height: 36px; }
+/* html.compact (layout: 'compact'): quieter header, smaller cards. */
+html.compact .intro { margin: 8px 0 14px; font-size: .9375rem; }
+html.compact .kicker { margin-top: 6px; font-size: .9375rem; }
+html.compact .subline { margin-top: 2px; font-size: .8125rem; }
+html.compact .tiles.services > .tile > span { min-height: 95px; gap: 6px; padding: 8px 8px; }
+html.compact .ico { width: 36px; height: 36px; }
 @media (max-width: 600px) {
-  html.themed .intro, html.themed .kicker, html.themed .subline { font-size: 1rem; } /* phones keep 16px text */
-  html.themed .intro { margin: 4px 0 8px; }
-  html.themed .tiles.services > .tile > span { min-height: 84px; gap: 4px; }
-  html.themed .ico { width: 30px; height: 30px; }
+  html.compact .intro, html.compact .kicker, html.compact .subline { font-size: 1rem; }
+  html.compact .intro { margin: 4px 0 8px; }
+  html.compact .tiles.services > .tile > span { min-height: 84px; gap: 4px; }
+  html.compact .ico { width: 30px; height: 30px; }
 }
 @media (max-width: 600px) and (max-height: 700px) {
-  html.themed .tiles.services > .tile > span { min-height: 76px; padding: 6px 6px; }
-  html.themed .ico { width: 28px; height: 28px; }
+  html.compact .tiles.services > .tile > span { min-height: 76px; padding: 6px 6px; }
+  html.compact .ico { width: 28px; height: 28px; }
 }

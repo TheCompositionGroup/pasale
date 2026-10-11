@@ -81,6 +81,7 @@ function validateOptionalFeatures(c, problems) {
   if (c.header !== undefined) {
     for (const k of ['line', 'subline', 'location']) if (c.header?.[k] !== undefined) perLang(c.header[k], `header.${k}`);
   }
+  if (c.layout !== undefined && !['default', 'compact'].includes(c.layout)) problems.push('layout must be "default" or "compact"');
   if (c.showConfig !== undefined && typeof c.showConfig !== 'boolean') problems.push('showConfig must be true or false');
   // The config file is shown to visitors, so it must hold sample or public data only.
   if (c.showConfig && !c.demo) problems.push('showConfig requires demo: true (the config file is shown to visitors)');
