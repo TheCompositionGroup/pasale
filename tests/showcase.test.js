@@ -162,17 +162,63 @@ test('showcase theme text and accent meet WCAG AA contrast on their backgrounds'
   }
 });
 
-// Browser checks. Skipped when Playwright is not installed (it is not a dependency of this project;
-// set PLAYWRIGHT_MODULE to its index.mjs to run them).
-async function loadChromium() {
-  for (const spec of ['playwright', process.env.PLAYWRIGHT_MODULE].filter(Boolean)) {
-    try { return (await import(spec)).chromium; } catch { /* try next */ }
-  }
-  return null;
+// showConfig shows the example's config file to every visitor, so it must hold nothing secret.
+// Secrets belong in environment variables (RESEND_API_KEY, PASALE_WEBHOOK_URL), never in the file.
+function findSecrets(text) {
+  const found = [];
+  if (/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+/.test(text)) found.push('email address');
+  if (/https?:\/\/[^\s'"]*(hooks?\.|webhook|\/hooks?\/|zapier|make\.com|n8n|discord(app)?\.com\/api|slack\.com\/services)/i.test(text)) found.push('webhook URL');
+  if (/\b(sk|re|pk|ghp|xox[bap])[-_][A-Za-z0-9_-]{16,}/.test(text)) found.push('API key or token value');
+  if (/^\s*['"]?[A-Za-z_]*(key|token|secret|password)[A-Za-z_]*['"]?\s*:/im.test(text)) found.push('field named key, token, secret or password');
+  return found;
 }
-const chromium = await loadChromium();
+
+test('secrets guard: the checker catches what it should', () => {
+  assert.deepEqual(findSecrets("ownerEmail: 'a@b.com'"), ['email address']);
+  assert.deepEqual(findSecrets("url: 'https://hooks.slack.com/services/T0/B0/x'"), ['webhook URL']);
+  assert.deepEqual(findSecrets("apiKey: 'x'"), ['field named key, token, secret or password']);
+  assert.deepEqual(findSecrets("secret: 'x'"), ['field named key, token, secret or password']);
+  assert.deepEqual(findSecrets("token: 'x'"), ['field named key, token, secret or password']);
+  assert.deepEqual(findSecrets("k: 're_abcdefghijklmnop1234'"), ['API key or token value']);
+  assert.deepEqual(findSecrets("publicUrl: 'https://example.com/'"), []);
+});
+
+test('showConfig output (the config file as served) contains no email, webhook URL, key, token or secret', async () => {
+  const file = 'examples/fancyape/fancyape.config.js';
+  const app = await startApp({ config: showcaseConfig(), handlerOptions: { sourceFile: file } });
+  const served = await (await fetch(`${app.base}/config-source.txt`)).text();
+  await app.close();
+  assert.equal(served, readFileSync(file, 'utf8'), 'the served text is the file itself');
+  assert.deepEqual(findSecrets(served), []);
+  // The resolved config object has no such fields either, at any depth.
+  const names = [];
+  const walk = (v) => { if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) { names.push(k); walk(x); } };
+  walk(showcase);
+  assert.deepEqual(names.filter((n) => /key|token|secret|password|ownerEmail|webhook/i.test(n)), []);
+  // The build step publishes a copy of the same file; it must be the file this test checked.
+  assert.match(readFileSync('scripts/build-showcase.js', 'utf8'), /examples\/fancyape\/fancyape\.config\.js/);
+});
+
+// Browser checks use Playwright (a devDependency; run `npm install`). If it or its browser is missing,
+// each browser test is skipped with a visible warning, never silently.
+const BROWSER_TESTS = [
+  'browser: default page renders with no optional feature visible',
+  'browser: showcase renders each feature',
+  'browser: demo submit makes zero network calls (default) and the confirmation says requested',
+  'browser: demo submit makes zero network calls (showcase) and the confirmation says requested',
+];
 let browser = null;
-if (chromium) { try { browser = await chromium.launch(); } catch { browser = null; } }
+let browserProblem = '';
+try {
+  const { chromium } = await import('playwright');
+  browser = await chromium.launch();
+} catch (e) {
+  browserProblem = String(e.message).split('\n')[0];
+}
+if (!browser) {
+  process.stderr.write(`\nWARNING: Playwright is not usable (${browserProblem}). These ${BROWSER_TESTS.length} browser tests are SKIPPED:\n${BROWSER_TESTS.map((n) => `  - ${n}`).join('\n')}\nFix: run \`npm install\` (and \`npx playwright install chromium\` if no browser is installed).\n\n`);
+}
+const skipReason = browser ? false : `SKIPPED: Playwright not usable (${browserProblem})`;
 
 async function drive(config, fn) {
   const app = await startApp({ config, handlerOptions: { sourceFile: 'examples/fancyape/fancyape.config.js' } });
@@ -189,7 +235,7 @@ async function drive(config, fn) {
   }
 }
 
-test('browser: default page renders with no optional feature visible', { skip: !browser }, async () => {
+test('browser: default page renders with no optional feature visible', { skip: skipReason }, async () => {
   await drive(testConfig({ demo: true }), async (page) => {
     assert.equal(await page.locator('.gallery, .attribution, .howbuilt, .subline').count(), 0);
     assert.equal(await page.locator('input[name=services]').first().getAttribute('type'), 'checkbox');
@@ -198,7 +244,7 @@ test('browser: default page renders with no optional feature visible', { skip: !
   });
 });
 
-test('browser: showcase renders each feature', { skip: !browser }, async () => {
+test('browser: showcase renders each feature', { skip: skipReason }, async () => {
   await drive(showcaseConfig(), async (page) => {
     const body = () => page.locator('body').innerText();
     let text = await body();
@@ -240,7 +286,7 @@ test('browser: showcase renders each feature', { skip: !browser }, async () => {
 });
 
 for (const name of ['default', 'showcase']) {
-  test(`browser: demo submit makes zero network calls (${name}) and the confirmation says requested`, { skip: !browser }, async () => {
+  test(`browser: demo submit makes zero network calls (${name}) and the confirmation says requested`, { skip: skipReason }, async () => {
     await drive(name === 'default' ? testConfig({ demo: true }) : showcaseConfig(), async (page, requests) => {
       const before = requests.length;
       await page.locator('input[name=services]').first().check({ force: true });
